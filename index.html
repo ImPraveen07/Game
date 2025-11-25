@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Haunted Multiplayer</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; touch-action: none; font-family: 'Arial', sans-serif; }
+        canvas { display: block; }
+
+        /* LOGIN SCREEN */
+        #login-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #00ffff; font-family: 'Courier New', Courier, monospace;
+        }
+        #login-screen h2 { text-shadow: 0 0 10px #00ffff; margin-bottom: 30px; letter-spacing: 3px; }
+        #username-input {
+            padding: 15px; font-size: 20px; border-radius: 5px; border: 2px solid #00ffff;
+            background: #000; color: #fff; margin-bottom: 20px; width: 250px; text-align: center; outline: none;
+        }
+        #join-btn {
+            padding: 15px 40px; font-size: 20px; background: #00ffff; color: #000;
+            border: none; border-radius: 5px; cursor: pointer; font-weight: bold;
+            box-shadow: 0 0 15px #00ffff; transition: 0.2s;
+        }
+        #join-btn:active { transform: scale(0.95); }
+
+        /* UI ELEMENTS */
+        #info {
+            position: absolute; top: 20px; width: 100%; text-align: center;
+            color: #000; font-weight: bold; text-transform: uppercase;
+            background: rgba(255,255,255,0.7); padding: 8px; pointer-events: none;
+        }
+
+        /* JOYSTICK */
+        #joystick-container {
+            position: absolute; bottom: 40px; left: 40px;
+            width: 150px; height: 150px; z-index: 10; touch-action: none;
+        }
+        #joystick-zone {
+            width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%; position: relative;
+        }
+        #joystick-knob {
+            position: absolute; top: 50%; left: 50%;
+            width: 60px; height: 60px; background: rgba(255,255,255,0.8);
+            border-radius: 50%; transform: translate(-50%, -50%);
+            pointer-events: none; box-shadow: 0 0 15px rgba(255,255,255,0.5);
+        }
+        #hint {
+            position: absolute; bottom: 40px; right: 40px;
+            color: #333; font-weight: bold; pointer-events: none;
+            background: rgba(255,255,255,0.5); padding: 5px 10px; border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <h2>GHOST PROTOCOL</h2>
+        <input type="text" id="username-input" placeholder="CODENAME" maxlength="10">
+        <button id="join-btn">CONNECT</button>
+    </div>
+
+    <div id="info">Realtime Ghost Avatar Sync</div>
+    
+    <div id="joystick-container">
+        <div id="joystick-zone">
+            <div id="joystick-knob"></div>
+        </div>
+    </div>
+    
+    <div id="hint">DRAG RIGHT SIDE TO LOOK</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+                "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { Line2 } from 'three/addons/lines/Line2.js';
+        import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+        import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+        import { initializeApp } from 'firebase/app';
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+
+        // --- FIREBASE INIT ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBwEhCK0dpslmSHdL6OsAqJUM7ZUmtLqvU",
+            authDomain: "toyou-a80b2.firebaseapp.com",
+            projectId: "toyou-a80b2",
+            storageBucket: "toyou-a80b2.appspot.com",
+            messagingSenderId: "77162611167",
+            appId: "1:77162611167:web:3dc6d01aa9dcd4bdc0046a"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let myId = 'ghost_' + Math.random().toString(36).substr(2, 9);
+        let myUsername = "Unknown";
+        let isGameActive = false;
+        let otherPlayers = {}; 
+
+        // --- SCENE SETUP ---
+        const ROOM_WIDTH = 400, ROOM_DEPTH = 400, ROOM_HEIGHT = 120, CELL_SIZE = 50; 
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff); 
+        scene.fog = new THREE.Fog(0xffffff, 20, 350);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; 
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        const mainLight = new THREE.PointLight(0xffffff, 0.8, 600);
+        mainLight.position.set(0, 50, 0); 
+        mainLight.castShadow = true;
+        scene.add(mainLight);
+
+        // Room Construction
+        const boxMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.BackSide });
+        const room = new THREE.Mesh(new THREE.BoxGeometry(ROOM_WIDTH, ROOM_HEIGHT, ROOM_DEPTH), boxMat);
+        scene.add(room);
+
+        // Edges
+        const thickLineGeo = new LineSegmentsGeometry();
+        thickLineGeo.setPositions(new THREE.EdgesGeometry(room.geometry).attributes.position.array);
+        const thickEdges = new Line2(thickLineGeo, new LineMaterial({ color: 0x000000, linewidth: 8, alphaToCoverage: true }));
+        thickEdges.computeLineDistances();
+        scene.add(thickEdges);
+
+        // Numbered Walls
+        let sqCount = 1;
+        function fillWall(w, h, px, py, pz, rx, ry, rz) {
+            const cols = Math.floor(w/CELL_SIZE), rows = Math.floor(h/CELL_SIZE);
+            const g = new THREE.Group(); g.position.set(px, py, pz); g.rotation.set(rx, ry, rz);
+            const sx = -w/2, sy = -h/2;
+            for(let r=0; r<rows; r++){
+                for(let c=0; c<cols; c++){
+                    const cvs = document.createElement('canvas'); cvs.width=128; cvs.height=128;
+                    const ctx = cvs.getContext('2d'); 
+                    ctx.font="bold 40px Arial"; ctx.fillStyle="#999"; ctx.textAlign="center"; ctx.textBaseline="middle";
+                    ctx.fillText(sqCount++, 64, 64); ctx.strokeStyle="#ddd"; ctx.strokeRect(0,0,128,128);
+                    const tex = new THREE.CanvasTexture(cvs); tex.minFilter = THREE.LinearFilter;
+                    const m = new THREE.Mesh(new THREE.PlaneGeometry(CELL_SIZE, CELL_SIZE), new THREE.MeshBasicMaterial({map:tex, transparent:true, side:THREE.DoubleSide}));
+                    m.position.set(sx + (c*CELL_SIZE)+(CELL_SIZE/2), sy + (r*CELL_SIZE)+(CELL_SIZE/2), 1);
+                    g.add(m);
+                }
+            }
+            scene.add(g);
+        }
+        const hW=ROOM_WIDTH/2, hH=ROOM_HEIGHT/2, hD=ROOM_DEPTH/2, PI=Math.PI;
+        fillWall(ROOM_WIDTH, ROOM_DEPTH, 0, -hH, 0, -PI/2, 0, 0); fillWall(ROOM_WIDTH, ROOM_DEPTH, 0, hH, 0, PI/2, 0, 0);
+        fillWall(ROOM_WIDTH, ROOM_HEIGHT, 0, 0, -hD, 0, 0, 0); fillWall(ROOM_WIDTH, ROOM_HEIGHT, 0, 0, hD, 0, PI, 0);
+        fillWall(ROOM_DEPTH, ROOM_HEIGHT, -hW, 0, 0, 0, PI/2, 0); fillWall(ROOM_DEPTH, ROOM_HEIGHT, hW, 0, 0, 0, -PI/2, 0);
+
+        // Table
+        const tableG = new THREE.Group();
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.3, metalness: 0.1 });
+        const top = new THREE.Mesh(new THREE.BoxGeometry(120, 5, 80), woodMat); top.position.y = 35; top.castShadow=true; tableG.add(top);
+        [ {x:-50, z:-30}, {x:50, z:-30}, {x:-50, z:30}, {x:50, z:30} ].forEach(p => {
+            const l = new THREE.Mesh(new THREE.CylinderGeometry(3, 2, 35, 16), woodMat); l.position.set(p.x, 17.5, p.z); l.castShadow=true; tableG.add(l);
+        });
+        tableG.position.set(0, -hH, 0); scene.add(tableG);
+
+        // ============================================
+        // MULTIPLAYER GHOST VISUALS
+        // ============================================
+
+        document.getElementById('join-btn').addEventListener('click', () => {
+            const name = document.getElementById('username-input').value;
+            if(!name) return;
+            myUsername = name;
+            document.getElementById('login-screen').style.display = 'none';
+            isGameActive = true;
+            initMultiplayer();
+        });
+
+        function initMultiplayer() {
+            const ref = collection(db, "players");
+            onSnapshot(ref, (snap) => {
+                snap.docChanges().forEach((change) => {
+                    const id = change.doc.id;
+                    const data = change.doc.data();
+                    if(id === myId) return;
+
+                    if(change.type === "added") createGhostPlayer(id, data);
+                    if(change.type === "modified") updateGhostPlayer(id, data);
+                    if(change.type === "removed") removePlayer(id);
+                });
+            });
+            window.addEventListener('beforeunload', () => deleteDoc(doc(db, "players", myId)));
+        }
+
+        function createGhostPlayer(id, data) {
+            const group = new THREE.Group();
+
+            // 1. Ghost Body (Glowing Capsule)
+            const bodyGeo = new THREE.CapsuleGeometry(7, 14, 4, 8);
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: 0x00ffff, // Cyan
+                transparent: true,
+                opacity: 0.6,
+                roughness: 0.1,
+                metalness: 0.9,
+                emissive: 0x004444, // Subtle Glow
+                emissiveIntensity: 0.8
+            });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.castShadow = true;
+            group.add(body);
+
+            // 2. Glowing Eyes
+            const eyeGeo = new THREE.SphereGeometry(1.5, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); // White bright eyes
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat); leftEye.position.set(-2.5, 4, 6);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat); rightEye.position.set(2.5, 4, 6);
+            group.add(leftEye);
+            group.add(rightEye);
+
+            // 3. Internal Light (Makes the ghost illuminate surroundings)
+            const light = new THREE.PointLight(0x00ffff, 0.5, 40);
+            group.add(light);
+
+            // 4. Username Label
+            const cvs = document.createElement('canvas'); cvs.width=256; cvs.height=64;
+            const ctx = cvs.getContext('2d');
+            ctx.font = "bold 32px Arial"; ctx.fillStyle = "#00ffff"; ctx.textAlign="center"; 
+            ctx.shadowColor="#000"; ctx.shadowBlur=4; ctx.fillText(data.name, 128, 40);
+            const tex = new THREE.CanvasTexture(cvs);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
+            sprite.position.y = 22; sprite.scale.set(25, 6, 1);
+            group.add(sprite);
+
+            group.position.set(data.x, data.y, data.z);
+            
+            // Store data for animation
+            otherPlayers[id] = { mesh: group, targetY: data.y };
+            scene.add(group);
+        }
+
+        function updateGhostPlayer(id, data) {
+            if(otherPlayers[id]) {
+                const p = otherPlayers[id];
+                p.mesh.position.set(data.x, p.mesh.position.y, data.z); // Keep Y independent for animation
+                p.targetY = data.y; // Store actual Y level
+                p.mesh.rotation.y = data.rotY;
+            }
+        }
+
+        function removePlayer(id) {
+            if(otherPlayers[id]) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; }
+        }
+
+        let lastSent = 0;
+        function sendPosition() {
+            const now = Date.now();
+            if(now - lastSent > 50) {
+                setDoc(doc(db, "players", myId), {
+                    x: camera.position.x,
+                    y: camera.position.y - 12, // Adjust to represent feet/body level
+                    z: camera.position.z,
+                    rotY: camera.rotation.y,
+                    name: myUsername,
+                    time: now
+                });
+                lastSent = now;
+            }
+        }
+
+        // --- CONTROLS (FIXED) ---
+        camera.position.set(0, -hH + 50, 120); camera.rotation.order="YXZ";
+        const joyDiv = document.getElementById('joystick-container');
+        const joyKnob = document.getElementById('joystick-knob');
+        let moveVec = {x:0,y:0}, joyId=null;
+
+        joyDiv.addEventListener('touchstart', e=>{ e.preventDefault(); e.stopPropagation(); joyId=e.changedTouches[0].identifier; handleJoy(e.changedTouches[0]); },{passive:false});
+        joyDiv.addEventListener('touchmove', e=>{ e.preventDefault(); e.stopPropagation(); for(let t of e.changedTouches) if(t.identifier===joyId) handleJoy(t); },{passive:false});
+        const endJoy = e=>{ for(let t of e.changedTouches) if(t.identifier===joyId){ joyId=null; moveVec={x:0,y:0}; joyKnob.style.transform='translate(-50%,-50%)';}};
+        joyDiv.addEventListener('touchend', endJoy); joyDiv.addEventListener('touchcancel', endJoy);
+        
+        // Mouse fallback
+        let mouseJoy=false;
+        joyDiv.addEventListener('mousedown', e=>{ mouseJoy=true; e.stopPropagation(); handleJoy(e); });
+        window.addEventListener('mousemove', e=>{ if(mouseJoy) handleJoy(e); });
+        window.addEventListener('mouseup', ()=>{ mouseJoy=false; moveVec={x:0,y:0}; joyKnob.style.transform='translate(-50%,-50%)'; });
+
+        function handleJoy(t) {
+            const r = joyDiv.getBoundingClientRect();
+            let dx = t.clientX - (r.left+r.width/2), dy = t.clientY - (r.top+r.height/2);
+            const d = Math.sqrt(dx*dx+dy*dy);
+            if(d>60){ const a=Math.atan2(dy,dx); dx=Math.cos(a)*60; dy=Math.sin(a)*60; }
+            joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            moveVec.x = dx/60; moveVec.y = dy/60;
+        }
+
+        let lookId=null, pX=0, pY=0, mouseLook=false;
+        const LOOK_SPD = 0.003;
+        renderer.domElement.addEventListener('touchstart', e=>{ 
+            e.preventDefault(); 
+            for(let t of e.changedTouches) if(t.identifier !== joyId){ lookId=t.identifier; pX=t.clientX; pY=t.clientY; break; }
+        }, {passive:false});
+        renderer.domElement.addEventListener('touchmove', e=>{
+            e.preventDefault();
+            for(let t of e.changedTouches) if(t.identifier===lookId){
+                camera.rotation.y -= (t.clientX-pX)*LOOK_SPD;
+                camera.rotation.x -= (t.clientY-pY)*LOOK_SPD;
+                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
+                pX=t.clientX; pY=t.clientY;
+            }
+        }, {passive:false});
+        renderer.domElement.addEventListener('touchend', e=>{ for(let t of e.changedTouches) if(t.identifier===lookId) lookId=null; });
+
+        renderer.domElement.addEventListener('mousedown', e=>{ mouseLook=true; pX=e.clientX; pY=e.clientY; });
+        window.addEventListener('mousemove', e=>{
+            if(mouseLook && !mouseJoy){
+                camera.rotation.y -= (e.clientX-pX)*LOOK_SPD;
+                camera.rotation.x -= (e.clientY-pY)*LOOK_SPD;
+                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
+                pX=e.clientX; pY=e.clientY;
+            }
+        });
+        window.addEventListener('mouseup', ()=>mouseLook=false);
+
+        // --- ANIMATION ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = Date.now();
+
+            // 1. Move Self
+            if(moveVec.x!==0 || moveVec.y!==0){
+                const fwd = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
+                const rgt = new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
+                camera.position.addScaledVector(fwd, -moveVec.y*4.0);
+                camera.position.addScaledVector(rgt, moveVec.x*4.0);
+                camera.position.x = Math.max(-hW+10, Math.min(hW-10, camera.position.x));
+                camera.position.y = Math.max(-hH+10, Math.min(hH-10, camera.position.y));
+                camera.position.z = Math.max(-hD+10, Math.min(hD-10, camera.position.z));
+            }
+
+            // 2. Animate Other Ghosts (Floating Effect)
+            for(let id in otherPlayers) {
+                const p = otherPlayers[id];
+                // Smooth Bobbing: BaseY + Sinewave
+                const floatOffset = Math.sin(time * 0.003) * 3; 
+                p.mesh.position.y = p.targetY + floatOffset;
+            }
+
+            if(isGameActive) sendPosition();
+
+            thickEdges.material.resolution.set(window.innerWidth, window.innerHeight);
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
