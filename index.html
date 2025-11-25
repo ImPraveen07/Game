@@ -2,94 +2,94 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Global Matrix Room</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Matrix Protocol</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Courier New', monospace; }
-        canvas { display: block; }
-
-        /* ERROR LOG */
-        #debug-log {
-            position: absolute; top: 0; left: 0; width: 100%; background: rgba(200,0,0,0.8);
-            color: white; font-size: 14px; padding: 5px; pointer-events: none; z-index: 999; display: none;
+        
+        /* CONNECTION STATUS */
+        #status-dot {
+            position: absolute; top: 15px; left: 15px; width: 12px; height: 12px;
+            background: red; border-radius: 50%; z-index: 1000; box-shadow: 0 0 10px red;
+            transition: background 0.3s;
         }
 
         /* LOGIN SCREEN */
         #login-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 100; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; color: #0f0;
+            align-items: center; justify-content: center;
         }
-        h1 { text-shadow: 0 0 10px #0f0; }
-        input { padding: 15px; font-size: 18px; text-align: center; margin-bottom: 20px; border: 2px solid #0f0; background: #111; color: #0f0; border-radius: 5px; }
-        button#join-btn { padding: 15px 40px; background: #0f0; border: none; font-weight: bold; font-size: 20px; cursor: pointer; border-radius: 5px; box-shadow: 0 0 15px #0f0; }
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Global Matrix Room</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Courier New', monospace; }
-        canvas { display: block; }
-
-        /* ERROR LOG */
-        #debug-log {
-            position: absolute; top: 0; left: 0; width: 100%; background: rgba(200,0,0,0.8);
-            color: white; font-size: 14px; padding: 5px; pointer-events: none; z-index: 999; display: none;
+        h1 { color: #0f0; text-shadow: 0 0 20px #0f0; font-size: 40px; letter-spacing: 5px; margin-bottom: 40px; text-align: center;}
+        input { 
+            padding: 15px; font-size: 20px; text-align: center; width: 200px;
+            background: #111; border: 2px solid #0f0; color: #0f0; border-radius: 5px; outline: none; margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+        button#join-btn { 
+            padding: 15px 50px; background: #0f0; color: #000; border: none; 
+            font-weight: bold; font-size: 20px; cursor: pointer; border-radius: 5px; 
+            box-shadow: 0 0 20px rgba(0,255,0,0.5); 
         }
 
-        /* LOGIN SCREEN */
-        #login-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 100; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; color: #0f0;
-        }
-        h1 { text-shadow: 0 0 10px #0f0; }
-        input { padding: 15px; font-size: 18px; text-align: center; margin-bottom: 20px; border: 2px solid #0f0; background: #111; color: #0f0; border-radius: 5px; }
-        button#join-btn { padding: 15px 40px; background: #0f0; border: none; font-weight: bold; font-size: 20px; cursor: pointer; border-radius: 5px; box-shadow: 0 0 15px #0f0; }
+        /* HUD */
+        #ui-layer { position: absolute; top: 20px; width: 100%; text-align: center; pointer-events: none; z-index: 50; }
+        #timer { font-size: 60px; color: #fff; font-weight: bold; display: none; text-shadow: 0 0 15px #000; font-family: sans-serif; }
+        #info { font-size: 14px; color: #888; background: rgba(0,0,0,0.8); padding: 5px 12px; border-radius: 20px; border: 1px solid #333; display: inline-block;}
 
-        /* GAME UI */
-        #ui-layer { position: absolute; top: 20px; width: 100%; text-align: center; pointer-events: none; z-index: 10; }
-        #timer { font-size: 50px; color: #fff; font-weight: bold; display: none; text-shadow: 0 0 10px #000; }
-        #status { font-size: 16px; color: #aaa; background: rgba(0,0,0,0.6); display: inline-block; padding: 5px 15px; border-radius: 20px; }
-
-        /* CLAP BUTTON */
+        /* MATRIX CLAP BUTTON */
         #clap-btn {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            padding: 25px 60px; font-size: 25px; background: #0f0; border: 5px solid #fff;
-            border-radius: 50px; cursor: pointer; display: none; z-index: 50;
-            box-shadow: 0 0 30px #0f0; animation: pulse 1s infinite;
+            padding: 30px 60px; font-size: 24px; font-weight: bold; color: #000;
+            background: #0f0; border: 4px solid #fff; border-radius: 50px;
+            cursor: pointer; display: none; z-index: 60;
+            box-shadow: 0 0 40px #0f0; animation: pulse 0.8s infinite alternate;
         }
-        @keyframes pulse { 0% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.1); } }
+        @keyframes pulse { from { transform: translate(-50%,-50%) scale(1); } to { transform: translate(-50%,-50%) scale(1.1); } }
 
-        /* CONTROLS */
-        #joystick-zone { position: absolute; bottom: 40px; left: 40px; width: 140px; height: 140px; border: 2px solid rgba(0,255,0,0.3); border-radius: 50%; touch-action: none; }
-        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; background: rgba(0,255,0,0.6); border-radius: 50%; transform: translate(-50%,-50%); pointer-events: none; }
-        #look-hint { position: absolute; bottom: 40px; right: 40px; color: #0f0; border: 1px solid #0f0; padding: 10px; background: rgba(0,0,0,0.5); pointer-events: none; border-radius: 5px; }
+        /* TOUCH ZONES */
+        #zone-move { position: absolute; bottom: 0; left: 0; width: 50%; height: 100%; z-index: 10; }
+        #zone-look { position: absolute; bottom: 0; right: 0; width: 50%; height: 100%; z-index: 10; }
+
+        /* JOYSTICK UI */
+        #joy-base {
+            position: absolute; bottom: 60px; left: 60px; width: 120px; height: 120px;
+            border: 2px solid rgba(0, 255, 0, 0.2); border-radius: 50%; pointer-events: none; z-index: 5;
+        }
+        #joy-stick {
+            position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
+            background: rgba(0, 255, 0, 0.4); border-radius: 50%; transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(0,255,0,0.2);
+        }
+        #look-hint { position: absolute; bottom: 60px; right: 60px; color: rgba(0,255,0,0.5); pointer-events: none; border: 1px solid rgba(0,255,0,0.2); padding: 8px; }
     </style>
 </head>
 <body>
 
-    <div id="debug-log"></div>
+    <div id="status-dot"></div>
 
+    <!-- LOGIN -->
     <div id="login-screen">
-        <h1>GLOBAL ROOM</h1>
-        <input type="text" id="username" placeholder="ENTER NAME" maxlength="8">
-        <button id="join-btn">JOIN NOW</button>
+        <h1>MATRIX<br>PROTOCOL</h1>
+        <input type="text" id="username" placeholder="CODENAME" maxlength="8">
+        <button id="join-btn">JACK IN</button>
     </div>
 
+    <!-- HUD -->
     <div id="ui-layer">
         <div id="timer">00:30</div>
-        <div id="status">WAITING FOR PLAYERS...</div>
+        <div id="info">SYSTEM OFFLINE</div>
     </div>
 
-    <button id="clap-btn">👏 CLAP NOW 👏</button>
+    <button id="clap-btn">👏 HACK SYSTEM 👏</button>
 
-    <div id="joystick-zone"><div id="joystick-knob"></div></div>
-    <div id="look-hint">DRAG RIGHT SIDE TO LOOK</div>
+    <!-- CONTROLS -->
+    <div id="zone-move"></div>
+    <div id="zone-look"></div>
+    <div id="joy-base"><div id="joy-stick"></div></div>
+    <div id="look-hint">DRAG TO LOOK</div>
 
-    <!-- LIBRARIES -->
+    <!-- DEPENDENCIES -->
     <script type="importmap">
         { "imports": {
             "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
@@ -103,285 +103,389 @@
         import { initializeApp } from 'firebase/app';
         import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 
-        // --- YOUR CONFIG (ALREADY INSERTED) ---
-const firebaseConfig = {
-  apiKey: "AIzaSyC9rehsf-0jkb9dAeT1-0Z1C-yRJ0YI9dA",
-  authDomain: "gymnm-ce84b.firebaseapp.com",
-  projectId: "gymnm-ce84b",
-  storageBucket: "gymnm-ce84b.appspot.com",
-  messagingSenderId: "474926929394",
-  appId: "1:474926929394:web:6abdb807caba2751a5c76b"
-};
+        // --- 1. CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBwEhCK0dpslmSHdL6OsAqJUM7ZUmtLqvU",
+            authDomain: "toyou-a80b2.firebaseapp.com",
+            projectId: "toyou-a80b2",
+            storageBucket: "toyou-a80b2.appspot.com",
+            messagingSenderId: "77162611167",
+            appId: "1:77162611167:web:3dc6d01aa9dcd4bdc0046a"
+        };
 
-        // DEBUGGER
-        function showError(msg) {
-            const d = document.getElementById('debug-log');
-            d.style.display = 'block';
-            d.innerText = "ERROR: " + msg;
-            if(msg.includes("permission")) d.innerText += " (CHECK FIREBASE RULES!)";
-        }
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const statusDot = document.getElementById('status-dot');
 
-        // INIT FIREBASE
-        let db;
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-        } catch(e) { showError(e.message); }
-
-        // --- GAME VARIABLES ---
-        const myId = 'p_' + Math.random().toString(36).substr(2, 9);
-        let myName = "Anon";
+        // --- 2. GAME VARIABLES ---
+        const myId = 'user_' + Math.floor(Math.random() * 999999);
+        let myName = "Neo";
         let isPlaying = false;
-        let players = {};
-        let isMatrix = false;
-        let wallMeshes = [];
+        let isMatrixMode = false;
         let startTime = null;
-
-        // --- SCENE ---
+        let players = {};
+        
+        // --- 3. SCENE SETUP ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x222222);
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 500);
-        const renderer = new THREE.WebGLRenderer({antialias:true});
+        scene.background = new THREE.Color(0xcccccc); // White/Grey initially
+        scene.fog = new THREE.Fog(0xcccccc, 10, 500);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Performance fix
         document.body.appendChild(renderer.domElement);
 
-        // LIGHTS
-        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-        const light = new THREE.PointLight(0xffffff, 0.8, 200);
-        light.position.set(0, 50, 0);
-        scene.add(light);
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 0.5, 300);
+        pointLight.position.set(0, 100, 0);
+        scene.add(pointLight);
 
-        // --- TEXTURES ---
-        function createNumTex(n) {
-            const c = document.createElement('canvas'); c.width=128; c.height=128;
-            const x = c.getContext('2d');
-            x.fillStyle='#ddd'; x.fillRect(0,0,128,128);
-            x.fillStyle='#000'; x.font='50px Arial'; x.textAlign='center'; x.textBaseline='middle';
-            x.fillText(n, 64, 64);
-            x.strokeStyle='#555'; x.lineWidth=4; x.strokeRect(0,0,128,128);
-            return new THREE.CanvasTexture(c);
-        }
-
-        function createMatrixTex() {
-            const c = document.createElement('canvas'); c.width=256; c.height=256;
-            const x = c.getContext('2d');
-            x.fillStyle='#000'; x.fillRect(0,0,256,256);
-            x.fillStyle='#0f0'; x.font='20px monospace';
-            for(let i=0; i<60; i++) x.fillText(String.fromCharCode(0x30A0+Math.random()*96), Math.random()*256, Math.random()*256);
-            return new THREE.CanvasTexture(c);
-        }
-        const matrixTex = createMatrixTex();
-
-        // --- BUILD ROOM ---
-        const ROOM_SIZE = 400; 
-        let count = 1;
-        
-        function makeWall(w, h, px, py, pz, rx, ry) {
-            const g = new THREE.Group();
-            g.position.set(px, py, pz); g.rotation.set(rx, ry, 0);
-            const cols = w/50, rows = h/50;
-            const sx = -w/2, sy = -h/2;
-            
-            for(let c=0; c<cols; c++) {
-                for(let r=0; r<rows; r++) {
-                    const mesh = new THREE.Mesh(
-                        new THREE.PlaneGeometry(50,50),
-                        new THREE.MeshStandardMaterial({ map: createNumTex(count++) })
-                    );
-                    mesh.position.set(sx + c*50 + 25, sy + r*50 + 25, 0);
-                    wallMeshes.push(mesh);
-                    g.add(mesh);
-                }
+        // --- 4. MATRIX SHADER (THE MAGIC) ---
+        // This creates the animated falling green code
+        const matrixVertexShader = `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
-            scene.add(g);
-        }
+        `;
 
-        // Floor/Ceiling
-        makeWall(400, 400, 0, -60, 0, -Math.PI/2, 0);
-        makeWall(400, 400, 0, 60, 0, Math.PI/2, 0);
-        // Walls
-        makeWall(400, 120, 0, 0, -200, 0, 0); // Front
-        makeWall(400, 120, 0, 0, 200, 0, Math.PI); // Back
-        makeWall(400, 120, -200, 0, 0, 0, Math.PI/2); // Left
-        makeWall(400, 120, 200, 0, 0, 0, -Math.PI/2); // Right
+        const matrixFragmentShader = `
+            varying vec2 vUv;
+            uniform float iTime;
+            
+            float random(vec2 st) {
+                return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+            }
 
-        // --- LOGIC ---
-        
-        // 1. Start Button
-        document.getElementById('join-btn').addEventListener('click', () => {
-            const name = document.getElementById('username').value;
-            if(!name) return alert("ENTER NAME");
-            myName = name;
-            document.getElementById('login-screen').style.display = 'none';
-            isPlaying = true;
-            initGame();
+            void main() {
+                // Grid setup
+                vec2 uv = vUv;
+                uv.x *= 50.0; // 50 columns
+                vec2 ipos = floor(uv);  // integer
+                vec2 fpos = fract(uv);  // fraction
+
+                // Random falling speed per column
+                float speed = 2.0 + random(vec2(ipos.x, 0.0)) * 3.0;
+                
+                // Calculate vertical movement
+                float y = fpos.y + iTime * speed;
+                
+                // Generate characters (random noise blocks)
+                float char = step(0.5, random(vec2(ipos.x, floor(y * 20.0))));
+                
+                // Trail fading
+                float trail = fract(y);
+                trail = 1.0 - trail; // Flip so head is at bottom of drop
+                trail = pow(trail, 3.0); // Make trail fade faster
+
+                // Color logic
+                vec3 color = vec3(0.0, 1.0, 0.0) * trail * char; // Green
+                
+                // Make the "head" of the drop white
+                if(trail > 0.9 && char > 0.5) color = vec3(0.8, 1.0, 0.8);
+
+                // Output
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+
+        const matrixMaterial = new THREE.ShaderMaterial({
+            vertexShader: matrixVertexShader,
+            fragmentShader: matrixFragmentShader,
+            uniforms: { iTime: { value: 0 } },
+            side: THREE.DoubleSide
         });
 
-        // 2. Init Multiplayer
-        const gameDocRef = doc(db, "gamestate", "global_room");
-        const playersRef = collection(db, "players_global");
+        // --- 5. NORMAL ROOM TEXTURE ---
+        function createNumberTexture(num) {
+            const c=document.createElement('canvas'); c.width=256; c.height=256;
+            const x=c.getContext('2d');
+            x.fillStyle='#ddd'; x.fillRect(0,0,256,256);
+            // Grid lines
+            x.strokeStyle='#bbb'; x.lineWidth=2; x.strokeRect(0,0,256,256);
+            // Number
+            x.fillStyle='#555'; x.font='100px monospace'; x.textAlign='center'; x.textBaseline='middle';
+            x.fillText(num, 128, 128);
+            const t = new THREE.CanvasTexture(c);
+            // Allow tiling
+            t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
+            return t;
+        }
+        const normalMap = createNumberTexture("01");
+        const normalMaterial = new THREE.MeshStandardMaterial({ 
+            map: normalMap,
+            roughness: 0.5
+        });
+        // Tile the normal texture
+        normalMap.repeat.set(8, 8); 
 
-        function initGame() {
-            // A. Listen to Game State (Timer/Matrix)
-            onSnapshot(gameDocRef, (snap) => {
-                if(!snap.exists()) {
-                    // Create default state if missing
-                    setDoc(gameDocRef, { start: null, matrix: false }).catch(e => showError(e.message));
-                    return;
-                }
+        // --- 6. ROOM CONSTRUCTION ---
+        const walls = [];
+        function createPlane(w, h, pos, rot) {
+            const geo = new THREE.PlaneGeometry(w, h);
+            const mesh = new THREE.Mesh(geo, normalMaterial); // Start with normal
+            mesh.position.copy(pos);
+            mesh.rotation.set(rot.x, rot.y, rot.z);
+            scene.add(mesh);
+            walls.push(mesh);
+        }
+
+        const ROOM_W = 400; const ROOM_H = 400; const ROOM_TALL = 150;
+        
+        // Floor & Ceiling
+        createPlane(ROOM_W, ROOM_H, new THREE.Vector3(0, -50, 0), new THREE.Vector3(-Math.PI/2, 0, 0));
+        createPlane(ROOM_W, ROOM_H, new THREE.Vector3(0, 100, 0), new THREE.Vector3(Math.PI/2, 0, 0));
+        // 4 Walls
+        createPlane(ROOM_W, ROOM_TALL, new THREE.Vector3(0, 25, -200), new THREE.Vector3(0, 0, 0)); // Front
+        createPlane(ROOM_W, ROOM_TALL, new THREE.Vector3(0, 25, 200), new THREE.Vector3(0, Math.PI, 0)); // Back
+        createPlane(ROOM_H, ROOM_TALL, new THREE.Vector3(-200, 25, 0), new THREE.Vector3(0, Math.PI/2, 0)); // Left
+        createPlane(ROOM_H, ROOM_TALL, new THREE.Vector3(200, 25, 0), new THREE.Vector3(0, -Math.PI/2, 0)); // Right
+
+        // --- 7. MULTIPLAYER LOGIC ---
+        document.getElementById('join-btn').addEventListener('click', () => {
+            const val = document.getElementById('username').value;
+            if(!val) return alert("CODENAME REQUIRED");
+            myName = val;
+            document.getElementById('login-screen').style.display = 'none';
+            isPlaying = true;
+            initNetwork();
+        });
+
+        function initNetwork() {
+            const gameRef = doc(db, "gamestate", "matrix_global");
+            const playersRef = collection(db, "players_matrix");
+
+            // A. Sync Game State
+            onSnapshot(gameRef, (snap) => {
+                statusDot.style.background = "#0f0"; // Connected
+                statusDot.style.boxShadow = "0 0 15px #0f0";
+
+                if(!snap.exists()) { setDoc(gameRef, { start: null, matrix: false }); return; }
                 const d = snap.data();
-                
+
                 // Matrix Trigger
-                if(d.matrix && !isMatrix) {
-                    isMatrix = true;
-                    wallMeshes.forEach(m => {
-                        m.material.map = matrixTex;
-                        m.material.color.setHex(0x00ff00);
-                        m.material.needsUpdate = true;
-                    });
-                    document.getElementById('clap-btn').style.display = 'none';
-                    document.getElementById('timer').style.color = '#0f0';
-                    document.getElementById('timer').innerText = "HACKED";
+                if(d.matrix && !isMatrixMode) {
+                    activateMatrixEffect();
                 }
 
-                // Timer Trigger
+                // Timer Sync
                 if(d.start) {
                     startTime = d.start;
                     document.getElementById('timer').style.display = 'block';
                 }
-            }, error => showError(error.message));
+            }, (err) => {
+                statusDot.style.background = "red";
+                console.error(err);
+            });
 
-            // B. Listen to Players
+            // B. Sync Players
             onSnapshot(playersRef, (snap) => {
                 const now = Date.now();
-                let pCount = 0;
+                let count = 0;
 
-                snap.forEach(d => {
-                    const data = d.data();
-                    if(now - data.time > 8000) return; // Skip ghosts
+                snap.forEach(docSnap => {
+                    const p = docSnap.data();
+                    if(now - p.time > 10000) return; // Ignore ghosts
                     
-                    pCount++;
-                    if(d.id === myId) return; // Skip self
+                    count++;
+                    if(docSnap.id === myId) return;
 
-                    // Update/Create Avatar
-                    if(!players[d.id]) {
+                    if(!players[docSnap.id]) {
+                        // Create Avatar
                         const g = new THREE.Group();
-                        const b = new THREE.Mesh(new THREE.CapsuleGeometry(5,15,4,8), new THREE.MeshStandardMaterial({color:0xff0000}));
+                        // Body
+                        const b = new THREE.Mesh(new THREE.CapsuleGeometry(6, 20, 4, 8), new THREE.MeshStandardMaterial({color: 0x333333}));
                         g.add(b);
-                        // Name
-                        const cv = document.createElement('canvas'); cv.width=256; cv.height=64;
-                        const cx=cv.getContext('2d'); cx.font="30px Arial"; cx.fillStyle="white"; cx.textAlign="center"; cx.fillText(data.name,128,40);
-                        const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv)}));
-                        s.position.y=20; s.scale.set(20,5,1); g.add(s);
+                        // Head (Green Visor)
+                        const h = new THREE.Mesh(new THREE.BoxGeometry(8, 4, 6), new THREE.MeshBasicMaterial({color: 0x00ff00}));
+                        h.position.y = 6; g.add(h);
                         
-                        g.position.set(data.x, data.y, data.z);
+                        // Name Tag
+                        const cv = document.createElement('canvas'); cv.width=256; cv.height=64;
+                        const x = cv.getContext('2d'); 
+                        x.font="bold 30px Courier New"; x.fillStyle="#0f0"; x.textAlign="center"; 
+                        x.shadowColor="black"; x.shadowBlur=4; x.fillText(p.name, 128, 40);
+                        const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: new THREE.CanvasTexture(cv)}));
+                        sp.position.y = 25; sp.scale.set(20, 5, 1); g.add(sp);
+
+                        g.position.set(p.x, p.y, p.z);
                         scene.add(g);
-                        players[d.id] = g;
+                        players[docSnap.id] = g;
                     } else {
-                        players[d.id].position.set(data.x, data.y, data.z);
-                        players[d.id].rotation.y = data.ry;
+                        players[docSnap.id].position.set(p.x, p.y, p.z);
+                        players[docSnap.id].rotation.y = p.ry;
                     }
                 });
 
-                // Remove disconnected
-                for(let id in players) {
-                    if(!snap.docs.find(doc => doc.id === id)) {
-                        scene.remove(players[id]); delete players[id];
-                    }
-                }
+                // Cleanup
+                Object.keys(players).forEach(id => {
+                    if(!snap.docs.find(d => d.id === id)) { scene.remove(players[id]); delete players[id]; }
+                });
 
-                document.getElementById('status').innerText = `PLAYERS ONLINE: ${pCount}`;
+                document.getElementById('info').innerText = `AGENTS ONLINE: ${count}`;
 
-                // Trigger Timer if 2 players and not started
-                if(pCount >= 2 && !startTime && isPlaying) {
-                    updateDoc(gameDocRef, { start: Date.now() }).catch(e=>{}); 
+                // Start Timer Logic
+                if(count >= 2 && !startTime && isPlaying) {
+                    updateDoc(gameRef, { start: Date.now() }).catch(e=>{});
                 }
             });
 
-            // C. Send My Pos
+            // C. Upload Loop
             setInterval(() => {
                 if(isPlaying) {
-                    setDoc(doc(db, "players_global", myId), {
+                    setDoc(doc(db, "players_matrix", myId), {
                         x: camera.position.x, y: camera.position.y-10, z: camera.position.z,
                         ry: camera.rotation.y, name: myName, time: Date.now()
-                    }).catch(e => showError(e.message));
+                    });
                 }
-            }, 100);
+            }, 100); // 10fps upload
         }
 
-        // 3. Clap Logic
+        // --- 8. MATRIX ACTIVATION ---
+        function activateMatrixEffect() {
+            isMatrixMode = true;
+            
+            // 1. Change Scene Environment
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = new THREE.FogExp2(0x001100, 0.01); // Greenish black fog
+            ambientLight.intensity = 0.2; // Darken room
+            
+            // 2. Swap Materials
+            walls.forEach(mesh => {
+                mesh.material = matrixMaterial;
+            });
+
+            // 3. UI Updates
+            document.getElementById('clap-btn').style.display = 'none';
+            const t = document.getElementById('timer');
+            t.innerText = "SYSTEM HACKED";
+            t.style.color = "#0f0";
+            t.style.fontFamily = "Courier New";
+        }
+
         document.getElementById('clap-btn').addEventListener('click', () => {
-            updateDoc(gameDocRef, { matrix: true });
+            updateDoc(doc(db, "gamestate", "matrix_global"), { matrix: true });
         });
 
-        // --- INPUTS ---
-        camera.position.set(0,0,100);
+        // --- 9. NEW INPUT SYSTEM (NO JITTER) ---
+        let joyId = null, lookId = null;
         let move = {x:0, y:0};
-        let joyId = null;
-        const joyZone = document.getElementById('joystick-zone');
-        const joyKnob = document.getElementById('joystick-knob');
+        let lastLook = {x:0, y:0};
 
-        const handleJoy = (cx, cy) => {
-            const r = joyZone.getBoundingClientRect();
-            let dx = cx - (r.left+70), dy = cy - (r.top+70);
+        const joyStick = document.getElementById('joy-stick');
+        const joyBase = document.getElementById('joy-base');
+
+        // Zone 1: Move (Left)
+        const zoneMove = document.getElementById('zone-move');
+        zoneMove.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const t = e.changedTouches[0];
+            joyId = t.identifier;
+            updateJoy(t.clientX, t.clientY);
+        }, {passive:false});
+        
+        zoneMove.addEventListener('touchmove', e => {
+            e.preventDefault();
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === joyId) updateJoy(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+            }
+        }, {passive:false});
+
+        zoneMove.addEventListener('touchend', e => {
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === joyId) {
+                    joyId=null; move={x:0,y:0};
+                    joyStick.style.transform = `translate(-50%, -50%)`;
+                }
+            }
+        });
+
+        function updateJoy(cx, cy) {
+            const rect = joyBase.getBoundingClientRect();
+            const centerX = rect.left + rect.width/2;
+            const centerY = rect.top + rect.height/2;
+            let dx = cx - centerX; let dy = cy - centerY;
             const dist = Math.min(Math.sqrt(dx*dx+dy*dy), 60);
             const ang = Math.atan2(dy, dx);
             dx = Math.cos(ang)*dist; dy = Math.sin(ang)*dist;
-            joyKnob.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            joyStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
             move.x = dx/60; move.y = dy/60;
-        };
+        }
 
-        joyZone.addEventListener('touchstart', e=>{ e.preventDefault(); joyId=e.changedTouches[0].identifier; handleJoy(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }, {passive:false});
-        joyZone.addEventListener('touchmove', e=>{ e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===joyId) handleJoy(t.clientX, t.clientY); }, {passive:false});
-        joyZone.addEventListener('touchend', e=>{ for(let t of e.changedTouches) if(t.identifier===joyId) { joyId=null; move={x:0,y:0}; joyKnob.style.transform='translate(-50%,-50%)'; } });
-
-        // Look
-        let lookId=null, prevLook={x:0,y:0};
-        document.addEventListener('touchstart', e=>{
-            for(let t of e.changedTouches) if(t.identifier!==joyId && e.target.id!=='clap-btn') { lookId=t.identifier; prevLook={x:t.clientX, y:t.clientY}; }
+        // Zone 2: Look (Right)
+        const zoneLook = document.getElementById('zone-look');
+        zoneLook.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const t = e.changedTouches[0];
+            lookId = t.identifier;
+            lastLook = {x:t.clientX, y:t.clientY};
         }, {passive:false});
-        document.addEventListener('touchmove', e=>{
-            for(let t of e.changedTouches) if(t.identifier===lookId) {
-                camera.rotation.y -= (t.clientX - prevLook.x)*0.005;
-                camera.rotation.x -= (t.clientY - prevLook.y)*0.005;
-                prevLook={x:t.clientX, y:t.clientY};
+
+        zoneLook.addEventListener('touchmove', e => {
+            e.preventDefault();
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === lookId) {
+                    const t = e.changedTouches[i];
+                    const dx = t.clientX - lastLook.x;
+                    const dy = t.clientY - lastLook.y;
+                    camera.rotation.y -= dx * 0.005;
+                    camera.rotation.x -= dy * 0.005;
+                    camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
+                    lastLook = {x:t.clientX, y:t.clientY};
+                }
             }
         }, {passive:false});
 
-        // --- ANIMATION ---
+        zoneLook.addEventListener('touchend', e => {
+             for(let i=0; i<e.changedTouches.length; i++) if(e.changedTouches[i].identifier === lookId) lookId=null;
+        });
+
+        // --- 10. RENDER LOOP ---
+        camera.position.set(0, 0, 100);
+        const clock = new THREE.Clock();
+
         function animate() {
             requestAnimationFrame(animate);
-            
-            // Move
-            if(move.x!==0 || move.y!==0) {
-                const d = new THREE.Vector3(move.x, 0, move.y).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
-                camera.position.addScaledVector(d, 3.5);
-                
-                // Boundaries
-                const LIM = 180;
-                camera.position.x = Math.max(-LIM, Math.min(LIM, camera.position.x));
-                camera.position.z = Math.max(-LIM, Math.min(LIM, camera.position.z));
+            const dt = clock.getDelta();
+            const now = clock.getElapsedTime();
+
+            // Update Shader Time (Makes code fall)
+            if(isMatrixMode) {
+                matrixMaterial.uniforms.iTime.value = now;
             }
 
-            // Timer
-            if(startTime && !isMatrix) {
+            // Movement
+            if(move.x !== 0 || move.y !== 0) {
+                const fwd = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
+                const rgt = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
+                camera.position.addScaledVector(fwd, -move.y * 4);
+                camera.position.addScaledVector(rgt, move.x * 4);
+                
+                // Collision
+                camera.position.x = Math.max(-190, Math.min(190, camera.position.x));
+                camera.position.z = Math.max(-190, Math.min(190, camera.position.z));
+            }
+
+            // Timer Countdown
+            if(startTime && !isMatrixMode) {
                 const elap = Date.now() - startTime;
                 const rem = Math.ceil((30000 - elap)/1000);
-                if(rem > 0) document.getElementById('timer').innerText = "00:" + (rem<10?'0':'')+rem;
+                if(rem > 0) document.getElementById('timer').innerText = `00:${rem.toString().padStart(2,'0')}`;
                 else {
                     document.getElementById('timer').innerText = "TIME UP";
                     document.getElementById('clap-btn').style.display = 'block';
                 }
             }
 
-            // Matrix
-            if(isMatrix) matrixTex.offset.y -= 0.015;
-
             renderer.render(scene, camera);
         }
         animate();
 
-        window.addEventListener('beforeunload', ()=>deleteDoc(doc(db, "players_global", myId)));
+        window.addEventListener('beforeunload', () => deleteDoc(doc(db, "players_matrix", myId)));
 
     </script>
 </body>
