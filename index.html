@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Matrix Multiplayer Room</title>
+    <title>Matrix Room Multiplayer</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Courier New', monospace; }
-        
-        /* DEBUGGER (Yellow Text) */
+
+        /* DEBUG CONSOLE (Yellow Text) */
         #debug-console {
-            position: absolute; top: 0; left: 0; width: 100%; 
-            background: rgba(0,0,0,0.9); color: #ffeb3b; font-size: 12px; 
+            position: absolute; top: 0; left: 0; width: 100%;
+            background: rgba(0,0,0,0.8); color: #ffeb3b; font-size: 12px;
             padding: 5px; pointer-events: none; z-index: 9999;
             white-space: pre-wrap; border-bottom: 1px solid #ffeb3b;
         }
@@ -21,13 +21,12 @@
             background: #111; z-index: 100; display: flex; flex-direction: column;
             align-items: center; justify-content: center;
         }
-        h1 { color: #0f0; text-shadow: 0 0 15px #0f0; font-size: 30px; margin-bottom: 30px; text-align: center; }
+        h1 { color: #0f0; text-shadow: 0 0 15px #0f0; font-size: 28px; margin-bottom: 30px; text-align: center; }
         
-        .input-group { margin-bottom: 15px; }
         input { 
-            padding: 15px; font-size: 18px; text-align: center; width: 250px;
+            padding: 15px; font-size: 18px; text-align: center; width: 240px;
             background: #000; border: 2px solid #0f0; color: #0f0; border-radius: 5px; outline: none;
-            font-family: monospace; text-transform: uppercase;
+            font-family: monospace; text-transform: uppercase; margin-bottom: 15px;
         }
         button#join-btn { 
             padding: 15px 60px; background: #0f0; color: #000; border: none; margin-top: 10px;
@@ -38,7 +37,7 @@
         /* HUD */
         #ui-layer { position: absolute; top: 40px; width: 100%; text-align: center; pointer-events: none; z-index: 50; }
         #timer { font-size: 50px; color: #fff; font-weight: bold; display: none; text-shadow: 0 0 15px #000; }
-        #room-info { font-size: 14px; color: #aaa; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 15px; display: inline-block; border: 1px solid #444; }
+        #room-display { font-size: 14px; color: #aaa; background: rgba(0,0,0,0.7); padding: 5px 15px; border-radius: 15px; display: inline-block; border: 1px solid #444; }
 
         /* CLAP BUTTON */
         #clap-btn {
@@ -50,12 +49,14 @@
         }
         @keyframes pulse { from { transform: translate(-50%,-50%) scale(1); } to { transform: translate(-50%,-50%) scale(1.1); } }
 
-        /* CONTROLS */
+        /* TOUCH ZONES */
         #zone-move { position: absolute; bottom: 0; left: 0; width: 50%; height: 100%; z-index: 10; }
         #zone-look { position: absolute; bottom: 0; right: 0; width: 50%; height: 100%; z-index: 10; }
+        
+        /* JOYSTICK VISUAL */
         #joy-base {
             position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px;
-            border: 2px solid rgba(0, 255, 0, 0.2); border-radius: 50%; pointer-events: none; z-index: 5;
+            border: 2px solid rgba(0, 255, 0, 0.3); border-radius: 50%; pointer-events: none; z-index: 5;
         }
         #joy-stick {
             position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
@@ -65,41 +66,34 @@
 </head>
 <body>
 
-    <div id="debug-console">System Initializing...</div>
+    <div id="debug-console">System Ready. Enter Room Code.</div>
 
     <!-- LOGIN -->
     <div id="login-screen">
-        <h1>MATRIX PROTOCOL</h1>
-        
-        <div class="input-group">
-            <input type="text" id="username" placeholder="ENTER USERNAME" maxlength="10">
-        </div>
-        <div class="input-group">
-            <input type="text" id="room-code" placeholder="ENTER ROOM CODE (e.g. 1)" maxlength="5">
-        </div>
-        
-        <button id="join-btn">CONNECT</button>
+        <h1>MATRIX MULTIPLAYER</h1>
+        <input type="text" id="username" placeholder="ENTER USERNAME" maxlength="10">
+        <input type="number" id="room-code" placeholder="ROOM CODE (e.g. 101)" maxlength="5">
+        <button id="join-btn">ENTER SYSTEM</button>
     </div>
 
     <!-- HUD -->
     <div id="ui-layer">
         <div id="timer">00:30</div>
-        <div id="room-info">OFFLINE</div>
+        <div id="room-display">OFFLINE</div>
     </div>
 
-    <button id="clap-btn">👏 EXECUTE HACK 👏</button>
+    <button id="clap-btn">👏 HACK SYSTEM 👏</button>
 
     <!-- CONTROLS -->
     <div id="zone-move"></div>
     <div id="zone-look"></div>
     <div id="joy-base"><div id="joy-stick"></div></div>
 
-    <!-- FIREBASE & THREE.JS -->
+    <!-- DEPENDENCIES -->
     <script type="importmap">
         { "imports": {
             "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
             "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
-            "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
             "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
         }}
     </script>
@@ -107,43 +101,44 @@
     <script type="module">
         import * as THREE from 'three';
         import { initializeApp } from 'firebase/app';
-        import { getAuth, signInAnonymously } from 'firebase/auth';
         import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 
-        // --- 1. LOGGING SYSTEM ---
-        const consoleDiv = document.getElementById('debug-console');
-        function log(msg) { consoleDiv.innerText = `> ${msg}`; console.log(msg); }
-
-        // --- 2. CONFIG ---
+        // --- 1. CONFIGURATION (YOUR NEW KEYS) ---
         const firebaseConfig = {
-        const firebaseConfig = {
-    apiKey: "AIzaSyC9rehsf-0jkb9dAeT1-0Z1C-yRJ0YI9dA",
-    authDomain: "gymnm-ce84b.firebaseapp.com",
-    projectId: "gymnm-ce84b",
-    storageBucket: "gymnm-ce84b.appspot.com",
-    messagingSenderId: "474926929394",
-    appId: "1:474926929394:web:6abdb807caba2751a5c76b",
-    measurementId: "G-6R9S8LYZNF"
-};
+            apiKey: "AIzaSyC9rehsf-0jkb9dAeT1-0Z1C-yRJ0YI9dA",
+            authDomain: "gymnm-ce84b.firebaseapp.com",
+            projectId: "gymnm-ce84b",
+            storageBucket: "gymnm-ce84b.appspot.com",
+            messagingSenderId: "474926929394",
+            appId: "1:474926929394:web:6abdb807caba2751a5c76b",
+            measurementId: "G-6R9S8LYZNF"
+        };
 
-        let db, auth;
+        // Logging Utility
+        const logDiv = document.getElementById('debug-console');
+        function log(msg) { 
+            console.log(msg); 
+            logDiv.innerText = "> " + msg; 
+        }
+
+        // Init Firebase
+        let db;
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
-            auth = getAuth(app);
-            log("Core Systems Loaded.");
+            log("Firebase Initialized.");
         } catch(e) { log("CONFIG ERROR: " + e.message); }
 
-        // --- 3. GAME VARIABLES ---
-        let myId = null; 
+        // --- 2. GAME STATE ---
+        const myId = 'player_' + Math.floor(Math.random() * 999999);
         let myName = "User";
-        let roomCode = "1";
+        let roomCode = "0";
         let isPlaying = false;
         let isMatrixMode = false;
         let startTime = null;
-        let otherPlayers = {}; 
+        let otherPlayers = {};
 
-        // --- 4. SCENE SETUP ---
+        // --- 3. THREE.JS SCENE ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xcccccc);
         scene.fog = new THREE.Fog(0xcccccc, 10, 500);
@@ -154,170 +149,159 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
-        const ambLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambLight);
-        const pLight = new THREE.PointLight(0xffffff, 0.5, 300); pLight.position.set(0, 100, 0); scene.add(pLight);
+        // Lighting
+        const ambLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambLight);
+        const pLight = new THREE.PointLight(0xffffff, 0.6, 300); pLight.position.set(0, 100, 0); scene.add(pLight);
 
-        // --- 5. SHADERS & MATERIALS ---
-        // Matrix Shader (The Green Rain)
+        // --- 4. TEXTURES & SHADERS ---
+        // Matrix Code Rain Shader
         const matUniforms = { iTime: { value: 0 } };
         const matMaterial = new THREE.ShaderMaterial({
             uniforms: matUniforms,
-            vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+            vertexShader: `varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
             fragmentShader: `
                 varying vec2 vUv; uniform float iTime;
                 float r(vec2 c){return fract(sin(dot(c.xy,vec2(12.9898,78.233)))*43758.5453);}
-                void main() {
-                    vec2 u = vUv; u.x *= 50.0; vec2 i = floor(u); vec2 f = fract(u);
-                    float s = 2.0 + r(vec2(i.x, 0.0)) * 3.0; float y = f.y + iTime * s;
-                    float c = step(0.5, r(vec2(i.x, floor(y * 20.0))));
-                    float t = 1.0 - fract(y); t = pow(t, 3.0);
-                    vec3 col = vec3(0.0, 1.0, 0.0) * t * c;
-                    if(t > 0.9 && c > 0.5) col = vec3(0.8, 1.0, 0.8);
-                    gl_FragColor = vec4(col, 1.0);
+                void main(){
+                    vec2 u=vUv; u.x*=50.0; vec2 i=floor(u); vec2 f=fract(u);
+                    float s=2.0+r(vec2(i.x,0.0))*3.0; float y=f.y+iTime*s;
+                    float c=step(0.5,r(vec2(i.x,floor(y*20.0))));
+                    float t=1.0-fract(y); t=pow(t,3.0);
+                    vec3 col=vec3(0.,1.,0.)*t*c; if(t>0.9&&c>0.5) col=vec3(0.8,1.0,0.8);
+                    gl_FragColor=vec4(col,1.0);
                 }
             `, side: THREE.DoubleSide
         });
 
-        // Standard Wall Material
+        // Standard Grid Texture
         function createGridTex() {
             const c=document.createElement('canvas'); c.width=256; c.height=256; const x=c.getContext('2d');
-            x.fillStyle='#ddd'; x.fillRect(0,0,256,256); x.strokeStyle='#bbb'; x.lineWidth=2; x.strokeRect(0,0,256,256);
-            const t = new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(10,10); return t;
+            x.fillStyle='#e0e0e0'; x.fillRect(0,0,256,256); x.strokeStyle='#999'; x.lineWidth=2; x.strokeRect(0,0,256,256);
+            const t = new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(8,8); return t;
         }
         const normalMat = new THREE.MeshStandardMaterial({ map: createGridTex(), roughness: 0.5 });
 
-        // --- 6. BUILD ROOM ---
+        // --- 5. ROOM GEOMETRY ---
         const walls = [];
         function buildWall(w, h, p, r) {
             const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h), normalMat);
             m.position.copy(p); m.rotation.set(r.x, r.y, r.z);
             scene.add(m); walls.push(m);
         }
-        const R_W = 400, R_H = 400, R_T = 150;
-        buildWall(R_W, R_H, new THREE.Vector3(0,-50,0), new THREE.Vector3(-Math.PI/2,0,0));
-        buildWall(R_W, R_H, new THREE.Vector3(0,100,0), new THREE.Vector3(Math.PI/2,0,0));
-        buildWall(R_W, R_T, new THREE.Vector3(0,25,-200), new THREE.Vector3(0,0,0));
-        buildWall(R_W, R_T, new THREE.Vector3(0,25,200), new THREE.Vector3(0,Math.PI,0));
-        buildWall(R_H, R_T, new THREE.Vector3(-200,25,0), new THREE.Vector3(0,Math.PI/2,0));
-        buildWall(R_H, R_T, new THREE.Vector3(200,25,0), new THREE.Vector3(0,-Math.PI/2,0));
+        const W=400, H=400, T=150;
+        buildWall(W,H, new THREE.Vector3(0,-50,0), new THREE.Vector3(-Math.PI/2,0,0)); // Floor
+        buildWall(W,H, new THREE.Vector3(0,100,0), new THREE.Vector3(Math.PI/2,0,0)); // Ceiling
+        buildWall(W,T, new THREE.Vector3(0,25,-200), new THREE.Vector3(0,0,0));
+        buildWall(W,T, new THREE.Vector3(0,25,200), new THREE.Vector3(0,Math.PI,0));
+        buildWall(H,T, new THREE.Vector3(-200,25,0), new THREE.Vector3(0,Math.PI/2,0));
+        buildWall(H,T, new THREE.Vector3(200,25,0), new THREE.Vector3(0,-Math.PI/2,0));
 
-        // --- 7. LOGIN & CONNECT ---
-        document.getElementById('join-btn').addEventListener('click', async () => {
-            const uName = document.getElementById('username').value.trim();
-            const rCode = document.getElementById('room-code').value.trim();
+        // --- 6. LOGIN LOGIC ---
+        document.getElementById('join-btn').addEventListener('click', () => {
+            const u = document.getElementById('username').value.trim();
+            const r = document.getElementById('room-code').value.trim();
+            
+            if(!u || !r) return alert("Please enter Username and Room Code!");
 
-            if(!uName || !rCode) return alert("Fill all fields!");
+            myName = u;
+            roomCode = "room_" + r; // e.g. "room_101"
 
-            document.getElementById('join-btn').disabled = true;
-            document.getElementById('join-btn').innerText = "AUTHENTICATING...";
-            log("Authenticating...");
-
-            try {
-                // STEP 1: AUTH (Fixes Permission Errors)
-                const userCred = await signInAnonymously(auth);
-                myId = userCred.user.uid; // Use real Auth ID
-                myName = uName;
-                roomCode = "room_" + rCode; // Prefix to keep it clean
-
-                log(`Auth Success: ${myId}. Joining ${roomCode}...`);
-                
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('room-info').innerText = `ROOM: ${rCode}`;
-                isPlaying = true;
-                
-                startMultiplayer();
-
-            } catch(error) {
-                log("AUTH ERROR: " + error.message);
-                alert("Login Failed: " + error.message);
-                document.getElementById('join-btn').disabled = false;
-            }
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('room-display').innerText = `ROOM: ${r}`;
+            isPlaying = true;
+            
+            log(`Joining ${roomCode} as ${myName}...`);
+            initMultiplayer();
         });
 
-        // --- 8. MULTIPLAYER LOGIC ---
-        function startMultiplayer() {
-            // Path: rooms / [roomCode]
-            const roomDocRef = doc(db, "rooms", roomCode);
-            // Path: rooms / [roomCode] / players
-            const playersColRef = collection(db, "rooms", roomCode, "players");
+        // --- 7. MULTIPLAYER LOGIC (No Auth) ---
+        function initMultiplayer() {
+            const roomRef = doc(db, "rooms", roomCode);
+            const playersRef = collection(db, "rooms", roomCode, "players");
 
-            // A. Listen to Game State
-            onSnapshot(roomDocRef, (snap) => {
+            // A. Listen for Matrix/Timer
+            onSnapshot(roomRef, (snap) => {
                 if(!snap.exists()) {
-                    setDoc(roomDocRef, { start: null, matrix: false });
+                    setDoc(roomRef, { start: null, matrix: false }).catch(e => log("Create Err: " + e.message));
                     return;
                 }
-                const data = snap.data();
+                const d = snap.data();
                 
-                // Matrix Logic
-                if(data.matrix && !isMatrixMode) activateMatrix();
+                if(d.matrix && !isMatrixMode) activateMatrix();
                 
-                // Timer Logic
-                if(data.start) {
-                    startTime = data.start;
+                if(d.start) {
+                    startTime = d.start;
                     document.getElementById('timer').style.display = 'block';
                 }
-            });
+            }, err => log("DB Error: " + err.message));
 
-            // B. Listen to Players
-            onSnapshot(playersColRef, (snap) => {
+            // B. Listen for Players
+            onSnapshot(playersRef, (snap) => {
                 const now = Date.now();
-                let pCount = 0;
+                let count = 0;
 
                 snap.forEach(d => {
                     const p = d.data();
-                    // Check for ghosts (inactive > 10s)
+                    // Ignore inactive players (>10s old)
                     if(now - p.time > 10000) return;
 
-                    pCount++;
+                    count++;
                     if(d.id === myId) return; // Skip self
 
                     if(!otherPlayers[d.id]) {
-                        // Create Avatar
+                        // New Avatar
                         const g = new THREE.Group();
                         const b = new THREE.Mesh(new THREE.CapsuleGeometry(6,20,4,8), new THREE.MeshStandardMaterial({color:0x333333}));
                         g.add(b);
-                        // Name
-                        const c = document.createElement('canvas'); c.width=256; c.height=64;
-                        const ctx=c.getContext('2d'); ctx.font="bold 30px Arial"; ctx.fillStyle="#0f0"; ctx.textAlign="center"; ctx.fillText(p.name,128,40);
-                        const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));
+                        
+                        // Name Tag
+                        const cv=document.createElement('canvas'); cv.width=256; cv.height=64;
+                        const cx=cv.getContext('2d'); cx.font="bold 30px Arial"; cx.fillStyle="#0f0"; cx.textAlign="center"; 
+                        cx.shadowColor="black"; cx.shadowBlur=4; cx.fillText(p.name,128,40);
+                        const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv)}));
                         s.position.y=25; s.scale.set(20,5,1); g.add(s);
                         
                         scene.add(g);
-                        otherPlayers[d.id] = { mesh:g, tPos: new THREE.Vector3(p.x,p.y,p.z), tRot: p.ry };
-                        g.position.set(p.x,p.y,p.z);
+                        // Store with target for smoothing
+                        otherPlayers[d.id] = { mesh: g, tPos: new THREE.Vector3(p.x, p.y, p.z), tRot: p.ry };
+                        g.position.set(p.x, p.y, p.z);
                         log(`Player Found: ${p.name}`);
                     } else {
                         // Update Target
-                        otherPlayers[d.id].tPos.set(p.x,p.y,p.z);
+                        otherPlayers[d.id].tPos.set(p.x, p.y, p.z);
                         otherPlayers[d.id].tRot = p.ry;
                     }
                 });
 
-                // Remove disconnected
+                // Remove Ghosts
                 Object.keys(otherPlayers).forEach(id => {
-                    if(!snap.docs.find(d => d.id === id)) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; }
+                    if(!snap.docs.find(d => d.id === id)) { 
+                        scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; 
+                    }
                 });
 
-                log(`Status: Connected (${pCount} Online)`);
-                
                 // Start Timer if 2+ players
-                if(pCount >= 2 && !startTime && isPlaying) {
-                    updateDoc(roomDocRef, { start: Date.now() }).catch(e=>{});
+                if(count >= 2 && !startTime && isPlaying) {
+                    updateDoc(roomRef, { start: Date.now() }).catch(()=>{});
                 }
             });
 
-            // C. Upload Self
+            // C. Upload Loop
             setInterval(() => {
                 if(isPlaying) {
-                    setDoc(doc(playersColRef, myId), {
+                    setDoc(doc(playersRef, myId), {
                         x: camera.position.x, y: camera.position.y-10, z: camera.position.z,
                         ry: camera.rotation.y, name: myName, time: Date.now()
-                    }).catch(e => log("Upload Fail: " + e.code));
+                    }).catch(e => {
+                        // If this errors, it's usually permission issues
+                        if(e.code === 'permission-denied') log("FAIL: Permission Denied (Check Rules)");
+                        else log("Upload Err: " + e.message);
+                    });
                 }
             }, 100);
         }
 
+        // --- 8. GAME ACTIONS ---
         function activateMatrix() {
             isMatrixMode = true;
             scene.background = new THREE.Color(0x000000);
@@ -333,15 +317,15 @@
             updateDoc(doc(db, "rooms", roomCode), { matrix: true });
         });
 
-        // --- 9. INPUTS ---
+        // --- 9. INPUT SYSTEM (TOUCH) ---
         let joyId=null, lookId=null;
-        let move={x:0,y:0}, lastLook={x:0,y:0};
+        let move={x:0, y:0}, lastLook={x:0, y:0};
         const jStick = document.getElementById('joy-stick');
         const jBase = document.getElementById('joy-base');
 
-        // Move Zone
-        document.getElementById('zone-move').addEventListener('touchstart', e=>{ e.preventDefault(); joyId=e.changedTouches[0].identifier; updateJoy(e.changedTouches[0]); },{passive:false});
-        document.getElementById('zone-move').addEventListener('touchmove', e=>{ e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===joyId) updateJoy(t); },{passive:false});
+        // Joystick (Left)
+        document.getElementById('zone-move').addEventListener('touchstart', e=>{ e.preventDefault(); joyId=e.changedTouches[0].identifier; updateJoy(e.changedTouches[0]); }, {passive:false});
+        document.getElementById('zone-move').addEventListener('touchmove', e=>{ e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===joyId) updateJoy(t); }, {passive:false});
         document.getElementById('zone-move').addEventListener('touchend', e=>{ for(let t of e.changedTouches) if(t.identifier===joyId) { joyId=null; move={x:0,y:0}; jStick.style.transform="translate(-50%,-50%)"; } });
 
         function updateJoy(t) {
@@ -355,8 +339,8 @@
             move.x=dx/60; move.y=dy/60;
         }
 
-        // Look Zone
-        document.getElementById('zone-look').addEventListener('touchstart', e=>{ e.preventDefault(); lookId=e.changedTouches[0].identifier; lastLook={x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY}; },{passive:false});
+        // Look (Right)
+        document.getElementById('zone-look').addEventListener('touchstart', e=>{ e.preventDefault(); lookId=e.changedTouches[0].identifier; lastLook={x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY}; }, {passive:false});
         document.getElementById('zone-look').addEventListener('touchmove', e=>{ 
             e.preventDefault();
             for(let t of e.changedTouches) if(t.identifier===lookId) {
@@ -365,20 +349,20 @@
                 camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
                 lastLook={x:t.clientX, y:t.clientY};
             }
-        },{passive:false});
+        }, {passive:false});
         document.getElementById('zone-look').addEventListener('touchend', e=>{ for(let t of e.changedTouches) if(t.identifier===lookId) lookId=null; });
 
-        // --- 10. LOOP ---
+        // --- 10. ANIMATION LOOP ---
         camera.position.set(0,0,100);
         const clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
-            const now = clock.getElapsedTime();
+            const dt = clock.getDelta();
+            
+            if(isMatrixMode) matUniforms.iTime.value = clock.getElapsedTime();
 
-            if(isMatrixMode) matUniforms.iTime.value = now;
-
-            // Move Self
+            // Move Local
             if(move.x!==0 || move.y!==0) {
                 const fwd = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
                 const rgt = new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
@@ -388,14 +372,14 @@
                 camera.position.z = Math.max(-190, Math.min(190, camera.position.z));
             }
 
-            // Interpolate Others
+            // Interpolate Remote Players (Smooth)
             for(let id in otherPlayers) {
                 const p = otherPlayers[id];
                 p.mesh.position.lerp(p.tPos, 0.1);
                 p.mesh.rotation.y += (p.tRot - p.mesh.rotation.y)*0.1;
             }
 
-            // Timer
+            // Timer Logic
             if(startTime && !isMatrixMode) {
                 const rem = Math.ceil((30000 - (Date.now()-startTime))/1000);
                 if(rem > 0) document.getElementById('timer').innerText = `00:${rem.toString().padStart(2,'0')}`;
@@ -409,7 +393,10 @@
         }
         animate();
 
-        window.addEventListener('beforeunload', ()=>deleteDoc(doc(db, "rooms", roomCode, "players", myId)));
+        // Cleanup on close
+        window.addEventListener('beforeunload', () => {
+            if(isPlaying) deleteDoc(doc(db, "rooms", roomCode, "players", myId));
+        });
     </script>
 </body>
 </html>
