@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Matrix Room Multiplayer</title>
+    <title>Matrix Room + Furniture</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Courier New', monospace; }
 
-        /* DEBUG CONSOLE (Yellow Text) */
+        /* DEBUG CONSOLE */
         #debug-console {
             position: absolute; top: 0; left: 0; width: 100%;
             background: rgba(0,0,0,0.8); color: #ffeb3b; font-size: 12px;
@@ -22,7 +22,6 @@
             align-items: center; justify-content: center;
         }
         h1 { color: #0f0; text-shadow: 0 0 15px #0f0; font-size: 28px; margin-bottom: 30px; text-align: center; }
-        
         input { 
             padding: 15px; font-size: 18px; text-align: center; width: 240px;
             background: #000; border: 2px solid #0f0; color: #0f0; border-radius: 5px; outline: none;
@@ -39,21 +38,25 @@
         #timer { font-size: 50px; color: #fff; font-weight: bold; display: none; text-shadow: 0 0 15px #000; }
         #room-display { font-size: 14px; color: #aaa; background: rgba(0,0,0,0.7); padding: 5px 15px; border-radius: 15px; display: inline-block; border: 1px solid #444; }
 
-        /* CLAP BUTTON */
-        #clap-btn {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            padding: 30px 60px; font-size: 24px; font-weight: bold; color: #000;
-            background: #0f0; border: 5px solid #fff; border-radius: 50px;
+        /* ACTION BUTTONS */
+        .action-btn {
+            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
+            padding: 20px 40px; font-size: 20px; font-weight: bold; color: #000;
+            background: #0f0; border: 4px solid #fff; border-radius: 50px;
             cursor: pointer; display: none; z-index: 60;
-            box-shadow: 0 0 40px #0f0; animation: pulse 1s infinite alternate;
+            box-shadow: 0 0 30px #0f0; animation: pulse 1s infinite alternate;
         }
+        
+        /* SIT BUTTON (Specific Styling) */
+        #sit-btn {
+            background: #00ffff; box-shadow: 0 0 30px #00ffff; top: 70%;
+        }
+
         @keyframes pulse { from { transform: translate(-50%,-50%) scale(1); } to { transform: translate(-50%,-50%) scale(1.1); } }
 
-        /* TOUCH ZONES */
+        /* CONTROLS */
         #zone-move { position: absolute; bottom: 0; left: 0; width: 50%; height: 100%; z-index: 10; }
         #zone-look { position: absolute; bottom: 0; right: 0; width: 50%; height: 100%; z-index: 10; }
-        
-        /* JOYSTICK VISUAL */
         #joy-base {
             position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px;
             border: 2px solid rgba(0, 255, 0, 0.3); border-radius: 50%; pointer-events: none; z-index: 5;
@@ -66,30 +69,31 @@
 </head>
 <body>
 
-    <div id="debug-console">System Ready. Enter Room Code.</div>
+    <div id="debug-console">System Ready.</div>
 
     <!-- LOGIN -->
     <div id="login-screen">
-        <h1>MATRIX MULTIPLAYER</h1>
+        <h1>MATRIX ROOM</h1>
         <input type="text" id="username" placeholder="ENTER USERNAME" maxlength="10">
-        <input type="number" id="room-code" placeholder="ROOM CODE (e.g. 101)" maxlength="5">
+        <input type="number" id="room-code" placeholder="ROOM CODE (e.g. 1)" maxlength="5">
         <button id="join-btn">ENTER SYSTEM</button>
     </div>
 
-    <!-- HUD -->
+    <!-- UI -->
     <div id="ui-layer">
         <div id="timer">00:30</div>
         <div id="room-display">OFFLINE</div>
     </div>
 
-    <button id="clap-btn">👏 HACK SYSTEM 👏</button>
+    <!-- BUTTONS -->
+    <button id="clap-btn" class="action-btn">👏 HACK SYSTEM 👏</button>
+    <button id="sit-btn" class="action-btn">🪑 SIT DOWN</button>
 
     <!-- CONTROLS -->
     <div id="zone-move"></div>
     <div id="zone-look"></div>
     <div id="joy-base"><div id="joy-stick"></div></div>
 
-    <!-- DEPENDENCIES -->
     <script type="importmap">
         { "imports": {
             "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
@@ -103,7 +107,7 @@
         import { initializeApp } from 'firebase/app';
         import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 
-        // --- 1. CONFIGURATION (YOUR NEW KEYS) ---
+        // 1. CONFIG
         const firebaseConfig = {
             apiKey: "AIzaSyC9rehsf-0jkb9dAeT1-0Z1C-yRJ0YI9dA",
             authDomain: "gymnm-ce84b.firebaseapp.com",
@@ -114,14 +118,9 @@
             measurementId: "G-6R9S8LYZNF"
         };
 
-        // Logging Utility
         const logDiv = document.getElementById('debug-console');
-        function log(msg) { 
-            console.log(msg); 
-            logDiv.innerText = "> " + msg; 
-        }
+        function log(msg) { console.log(msg); logDiv.innerText = "> " + msg; }
 
-        // Init Firebase
         let db;
         try {
             const app = initializeApp(firebaseConfig);
@@ -129,16 +128,22 @@
             log("Firebase Initialized.");
         } catch(e) { log("CONFIG ERROR: " + e.message); }
 
-        // --- 2. GAME STATE ---
+        // 2. VARIABLES
         const myId = 'player_' + Math.floor(Math.random() * 999999);
         let myName = "User";
         let roomCode = "0";
         let isPlaying = false;
         let isMatrixMode = false;
+        let isSitting = false;
         let startTime = null;
         let otherPlayers = {};
 
-        // --- 3. THREE.JS SCENE ---
+        // Chair Locations (Left and Right of center)
+        const chair1Pos = new THREE.Vector3(-30, -35, 0);
+        const chair2Pos = new THREE.Vector3(30, -35, 0);
+        let activeChair = null; // Which chair we are near/sitting on
+
+        // 3. SCENE
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xcccccc);
         scene.fog = new THREE.Fog(0xcccccc, 10, 500);
@@ -149,12 +154,10 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
-        // Lighting
         const ambLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambLight);
         const pLight = new THREE.PointLight(0xffffff, 0.6, 300); pLight.position.set(0, 100, 0); scene.add(pLight);
 
-        // --- 4. TEXTURES & SHADERS ---
-        // Matrix Code Rain Shader
+        // 4. TEXTURES
         const matUniforms = { iTime: { value: 0 } };
         const matMaterial = new THREE.ShaderMaterial({
             uniforms: matUniforms,
@@ -173,21 +176,26 @@
             `, side: THREE.DoubleSide
         });
 
-        // Standard Grid Texture
         function createGridTex() {
             const c=document.createElement('canvas'); c.width=256; c.height=256; const x=c.getContext('2d');
             x.fillStyle='#e0e0e0'; x.fillRect(0,0,256,256); x.strokeStyle='#999'; x.lineWidth=2; x.strokeRect(0,0,256,256);
             const t = new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(8,8); return t;
         }
         const normalMat = new THREE.MeshStandardMaterial({ map: createGridTex(), roughness: 0.5 });
+        
+        // Furniture Material (Dark Metal)
+        const furnitureMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.2, metalness: 0.8 });
 
-        // --- 5. ROOM GEOMETRY ---
-        const walls = [];
+        // 5. OBJECTS
+        const matrixObjects = []; // List of objects to apply matrix effect to
+
         function buildWall(w, h, p, r) {
             const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h), normalMat);
             m.position.copy(p); m.rotation.set(r.x, r.y, r.z);
-            scene.add(m); walls.push(m);
+            scene.add(m); matrixObjects.push(m);
         }
+
+        // Build Room
         const W=400, H=400, T=150;
         buildWall(W,H, new THREE.Vector3(0,-50,0), new THREE.Vector3(-Math.PI/2,0,0)); // Floor
         buildWall(W,H, new THREE.Vector3(0,100,0), new THREE.Vector3(Math.PI/2,0,0)); // Ceiling
@@ -196,151 +204,170 @@
         buildWall(H,T, new THREE.Vector3(-200,25,0), new THREE.Vector3(0,Math.PI/2,0));
         buildWall(H,T, new THREE.Vector3(200,25,0), new THREE.Vector3(0,-Math.PI/2,0));
 
-        // --- 6. LOGIN LOGIC ---
+        // --- BUILD FURNITURE (Table & Chairs) ---
+        function createFurniture() {
+            const furnGroup = new THREE.Group();
+
+            // TABLE (Center)
+            // Top
+            const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(30, 30, 2, 32), furnitureMat);
+            tableTop.position.set(0, -30, 0); // 20 units high from floor (-50)
+            furnGroup.add(tableTop); matrixObjects.push(tableTop);
+            // Leg
+            const tableLeg = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 20, 16), furnitureMat);
+            tableLeg.position.set(0, -40, 0);
+            furnGroup.add(tableLeg); matrixObjects.push(tableLeg);
+
+            // CHAIR 1 (Left)
+            const c1Seat = new THREE.Mesh(new THREE.BoxGeometry(12, 2, 12), furnitureMat);
+            c1Seat.position.copy(chair1Pos);
+            furnGroup.add(c1Seat); matrixObjects.push(c1Seat);
+            const c1Back = new THREE.Mesh(new THREE.BoxGeometry(2, 15, 12), furnitureMat);
+            c1Back.position.set(-36, -28, 0); // Backrest
+            furnGroup.add(c1Back); matrixObjects.push(c1Back);
+            const c1Leg = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 15, 8), furnitureMat);
+            c1Leg.position.set(-30, -42.5, 0);
+            furnGroup.add(c1Leg); matrixObjects.push(c1Leg);
+
+            // CHAIR 2 (Right)
+            const c2Seat = new THREE.Mesh(new THREE.BoxGeometry(12, 2, 12), furnitureMat);
+            c2Seat.position.copy(chair2Pos);
+            furnGroup.add(c2Seat); matrixObjects.push(c2Seat);
+            const c2Back = new THREE.Mesh(new THREE.BoxGeometry(2, 15, 12), furnitureMat);
+            c2Back.position.set(36, -28, 0); // Backrest
+            furnGroup.add(c2Back); matrixObjects.push(c2Back);
+            const c2Leg = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 15, 8), furnitureMat);
+            c2Leg.position.set(30, -42.5, 0);
+            furnGroup.add(c2Leg); matrixObjects.push(c2Leg);
+
+            scene.add(furnGroup);
+        }
+        createFurniture();
+
+        // 6. LOGIC
         document.getElementById('join-btn').addEventListener('click', () => {
             const u = document.getElementById('username').value.trim();
             const r = document.getElementById('room-code').value.trim();
-            
-            if(!u || !r) return alert("Please enter Username and Room Code!");
-
-            myName = u;
-            roomCode = "room_" + r; // e.g. "room_101"
-
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('room-display').innerText = `ROOM: ${r}`;
-            isPlaying = true;
-            
-            log(`Joining ${roomCode} as ${myName}...`);
+            if(!u || !r) return alert("Enter Name & Code");
+            myName = u; roomCode = "room_" + r;
+            document.getElementById('login-screen').style.display='none';
+            document.getElementById('room-display').innerText=`ROOM: ${r}`;
+            isPlaying=true;
             initMultiplayer();
         });
 
-        // --- 7. MULTIPLAYER LOGIC (No Auth) ---
         function initMultiplayer() {
             const roomRef = doc(db, "rooms", roomCode);
             const playersRef = collection(db, "rooms", roomCode, "players");
 
-            // A. Listen for Matrix/Timer
             onSnapshot(roomRef, (snap) => {
-                if(!snap.exists()) {
-                    setDoc(roomRef, { start: null, matrix: false }).catch(e => log("Create Err: " + e.message));
-                    return;
-                }
+                if(!snap.exists()) { setDoc(roomRef, {start:null, matrix:false}); return; }
                 const d = snap.data();
-                
                 if(d.matrix && !isMatrixMode) activateMatrix();
-                
-                if(d.start) {
-                    startTime = d.start;
-                    document.getElementById('timer').style.display = 'block';
-                }
-            }, err => log("DB Error: " + err.message));
+                if(d.start) { startTime = d.start; document.getElementById('timer').style.display='block'; }
+            });
 
-            // B. Listen for Players
             onSnapshot(playersRef, (snap) => {
                 const now = Date.now();
                 let count = 0;
-
                 snap.forEach(d => {
                     const p = d.data();
-                    // Ignore inactive players (>10s old)
                     if(now - p.time > 10000) return;
-
                     count++;
-                    if(d.id === myId) return; // Skip self
-
+                    if(d.id === myId) return;
                     if(!otherPlayers[d.id]) {
-                        // New Avatar
                         const g = new THREE.Group();
                         const b = new THREE.Mesh(new THREE.CapsuleGeometry(6,20,4,8), new THREE.MeshStandardMaterial({color:0x333333}));
                         g.add(b);
-                        
-                        // Name Tag
-                        const cv=document.createElement('canvas'); cv.width=256; cv.height=64;
-                        const cx=cv.getContext('2d'); cx.font="bold 30px Arial"; cx.fillStyle="#0f0"; cx.textAlign="center"; 
-                        cx.shadowColor="black"; cx.shadowBlur=4; cx.fillText(p.name,128,40);
-                        const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv)}));
+                        const c=document.createElement('canvas'); c.width=256; c.height=64;
+                        const ctx=c.getContext('2d'); ctx.font="bold 30px Arial"; ctx.fillStyle="#0f0"; ctx.textAlign="center"; ctx.fillText(p.name,128,40);
+                        const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));
                         s.position.y=25; s.scale.set(20,5,1); g.add(s);
-                        
                         scene.add(g);
-                        // Store with target for smoothing
-                        otherPlayers[d.id] = { mesh: g, tPos: new THREE.Vector3(p.x, p.y, p.z), tRot: p.ry };
-                        g.position.set(p.x, p.y, p.z);
-                        log(`Player Found: ${p.name}`);
+                        otherPlayers[d.id] = { mesh:g, tPos: new THREE.Vector3(p.x,p.y,p.z), tRot: p.ry };
+                        g.position.set(p.x,p.y,p.z);
                     } else {
-                        // Update Target
-                        otherPlayers[d.id].tPos.set(p.x, p.y, p.z);
+                        otherPlayers[d.id].tPos.set(p.x,p.y,p.z);
                         otherPlayers[d.id].tRot = p.ry;
                     }
                 });
-
-                // Remove Ghosts
                 Object.keys(otherPlayers).forEach(id => {
-                    if(!snap.docs.find(d => d.id === id)) { 
-                        scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; 
-                    }
+                    if(!snap.docs.find(d => d.id === id)) { scene.remove(otherPlayers[id].mesh); delete otherPlayers[id]; }
                 });
-
-                // Start Timer if 2+ players
-                if(count >= 2 && !startTime && isPlaying) {
-                    updateDoc(roomRef, { start: Date.now() }).catch(()=>{});
-                }
+                if(count >= 2 && !startTime && isPlaying) updateDoc(roomRef, {start:Date.now()}).catch(()=>{});
             });
 
-            // C. Upload Loop
             setInterval(() => {
-                if(isPlaying) {
-                    setDoc(doc(playersRef, myId), {
-                        x: camera.position.x, y: camera.position.y-10, z: camera.position.z,
-                        ry: camera.rotation.y, name: myName, time: Date.now()
-                    }).catch(e => {
-                        // If this errors, it's usually permission issues
-                        if(e.code === 'permission-denied') log("FAIL: Permission Denied (Check Rules)");
-                        else log("Upload Err: " + e.message);
-                    });
-                }
+                if(isPlaying) setDoc(doc(playersRef, myId), {
+                    x:camera.position.x, y:camera.position.y-10, z:camera.position.z,
+                    ry:camera.rotation.y, name:myName, time:Date.now()
+                }).catch(()=>{});
             }, 100);
         }
 
-        // --- 8. GAME ACTIONS ---
         function activateMatrix() {
             isMatrixMode = true;
             scene.background = new THREE.Color(0x000000);
             scene.fog = new THREE.FogExp2(0x001100, 0.02);
             ambLight.intensity = 0.2;
-            walls.forEach(w => w.material = matMaterial);
-            document.getElementById('clap-btn').style.display = 'none';
-            document.getElementById('timer').innerText = "HACKED";
-            document.getElementById('timer').style.color = "#0f0";
+            matrixObjects.forEach(o => o.material = matMaterial);
+            document.getElementById('clap-btn').style.display='none';
+            document.getElementById('timer').innerText="HACKED";
+            document.getElementById('timer').style.color="#0f0";
         }
 
-        document.getElementById('clap-btn').addEventListener('click', () => {
-            updateDoc(doc(db, "rooms", roomCode), { matrix: true });
+        document.getElementById('clap-btn').addEventListener('click', () => updateDoc(doc(db, "rooms", roomCode), {matrix:true}));
+
+        // --- SIT INTERACTION ---
+        const sitBtn = document.getElementById('sit-btn');
+        
+        sitBtn.addEventListener('click', () => {
+            if(isSitting) {
+                // Stand up
+                isSitting = false;
+                sitBtn.style.display = "none"; // Hide until we move again
+                sitBtn.innerText = "🪑 SIT DOWN";
+                // Move slightly away so we don't instantly sit back down
+                const offset = activeChair === 1 ? 10 : -10;
+                camera.position.x += offset; 
+                camera.position.y = 0; // Standard eye height
+            } else {
+                // Sit down
+                if(!activeChair) return;
+                isSitting = true;
+                sitBtn.innerText = "🏃 LEAVE SEAT";
+                
+                // Snap position
+                const target = activeChair === 1 ? chair1Pos : chair2Pos;
+                camera.position.set(target.x, target.y + 10, target.z); // Sit slightly above seat
+                // Look at table
+                camera.lookAt(0, -30, 0);
+            }
         });
 
-        // --- 9. INPUT SYSTEM (TOUCH) ---
+        // --- INPUTS ---
         let joyId=null, lookId=null;
-        let move={x:0, y:0}, lastLook={x:0, y:0};
+        let move={x:0,y:0}, lastLook={x:0,y:0};
         const jStick = document.getElementById('joy-stick');
         const jBase = document.getElementById('joy-base');
 
-        // Joystick (Left)
-        document.getElementById('zone-move').addEventListener('touchstart', e=>{ e.preventDefault(); joyId=e.changedTouches[0].identifier; updateJoy(e.changedTouches[0]); }, {passive:false});
-        document.getElementById('zone-move').addEventListener('touchmove', e=>{ e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===joyId) updateJoy(t); }, {passive:false});
+        document.getElementById('zone-move').addEventListener('touchstart', e=>{ e.preventDefault(); joyId=e.changedTouches[0].identifier; updateJoy(e.changedTouches[0]); },{passive:false});
+        document.getElementById('zone-move').addEventListener('touchmove', e=>{ e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===joyId) updateJoy(t); },{passive:false});
         document.getElementById('zone-move').addEventListener('touchend', e=>{ for(let t of e.changedTouches) if(t.identifier===joyId) { joyId=null; move={x:0,y:0}; jStick.style.transform="translate(-50%,-50%)"; } });
 
         function updateJoy(t) {
+            if(isSitting) return; // Cannot move while sitting
             const r = jBase.getBoundingClientRect();
-            const cx = r.left+r.width/2, cy = r.top+r.height/2;
-            let dx = t.clientX-cx, dy = t.clientY-cy;
-            const d = Math.min(Math.sqrt(dx*dx+dy*dy), 60);
-            const a = Math.atan2(dy,dx);
+            const cx=r.left+r.width/2, cy=r.top+r.height/2;
+            let dx=t.clientX-cx, dy=t.clientY-cy;
+            const d=Math.min(Math.sqrt(dx*dx+dy*dy), 60);
+            const a=Math.atan2(dy,dx);
             dx=Math.cos(a)*d; dy=Math.sin(a)*d;
             jStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
             move.x=dx/60; move.y=dy/60;
         }
 
-        // Look (Right)
-        document.getElementById('zone-look').addEventListener('touchstart', e=>{ e.preventDefault(); lookId=e.changedTouches[0].identifier; lastLook={x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY}; }, {passive:false});
+        document.getElementById('zone-look').addEventListener('touchstart', e=>{ e.preventDefault(); lookId=e.changedTouches[0].identifier; lastLook={x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY}; },{passive:false});
         document.getElementById('zone-look').addEventListener('touchmove', e=>{ 
             e.preventDefault();
             for(let t of e.changedTouches) if(t.identifier===lookId) {
@@ -349,21 +376,19 @@
                 camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
                 lastLook={x:t.clientX, y:t.clientY};
             }
-        }, {passive:false});
+        },{passive:false});
         document.getElementById('zone-look').addEventListener('touchend', e=>{ for(let t of e.changedTouches) if(t.identifier===lookId) lookId=null; });
 
-        // --- 10. ANIMATION LOOP ---
+        // --- ANIMATION ---
         camera.position.set(0,0,100);
         const clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
-            const dt = clock.getDelta();
-            
             if(isMatrixMode) matUniforms.iTime.value = clock.getElapsedTime();
 
-            // Move Local
-            if(move.x!==0 || move.y!==0) {
+            // Movement (Only if not sitting)
+            if(!isSitting && (move.x!==0 || move.y!==0)) {
                 const fwd = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
                 const rgt = new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
                 camera.position.addScaledVector(fwd, -move.y*4);
@@ -372,14 +397,31 @@
                 camera.position.z = Math.max(-190, Math.min(190, camera.position.z));
             }
 
-            // Interpolate Remote Players (Smooth)
+            // Proximity Check for Chairs
+            if(isPlaying && !isSitting) {
+                const dist1 = camera.position.distanceTo(new THREE.Vector3(chair1Pos.x, 0, chair1Pos.z));
+                const dist2 = camera.position.distanceTo(new THREE.Vector3(chair2Pos.x, 0, chair2Pos.z));
+                
+                if(dist1 < 25) {
+                    activeChair = 1;
+                    sitBtn.style.display = "block";
+                } else if(dist2 < 25) {
+                    activeChair = 2;
+                    sitBtn.style.display = "block";
+                } else {
+                    activeChair = null;
+                    sitBtn.style.display = "none";
+                }
+            }
+
+            // Sync Other Players
             for(let id in otherPlayers) {
                 const p = otherPlayers[id];
                 p.mesh.position.lerp(p.tPos, 0.1);
                 p.mesh.rotation.y += (p.tRot - p.mesh.rotation.y)*0.1;
             }
 
-            // Timer Logic
+            // Timer
             if(startTime && !isMatrixMode) {
                 const rem = Math.ceil((30000 - (Date.now()-startTime))/1000);
                 if(rem > 0) document.getElementById('timer').innerText = `00:${rem.toString().padStart(2,'0')}`;
@@ -393,10 +435,7 @@
         }
         animate();
 
-        // Cleanup on close
-        window.addEventListener('beforeunload', () => {
-            if(isPlaying) deleteDoc(doc(db, "rooms", roomCode, "players", myId));
-        });
+        window.addEventListener('beforeunload', () => deleteDoc(doc(db, "rooms", roomCode, "players", myId)));
     </script>
 </body>
 </html>
