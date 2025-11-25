@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Matrix Room + Furniture</title>
+    <title>Matrix Room Pro</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Courier New', monospace; }
+        body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Courier New', monospace; user-select: none; -webkit-user-select: none; }
 
         /* DEBUG CONSOLE */
         #debug-console {
@@ -46,24 +46,29 @@
             cursor: pointer; display: none; z-index: 60;
             box-shadow: 0 0 30px #0f0; animation: pulse 1s infinite alternate;
         }
-        
-        /* SIT BUTTON (Specific Styling) */
-        #sit-btn {
-            background: #00ffff; box-shadow: 0 0 30px #00ffff; top: 70%;
-        }
+        #sit-btn { background: #00ffff; box-shadow: 0 0 30px #00ffff; top: 75%; }
 
         @keyframes pulse { from { transform: translate(-50%,-50%) scale(1); } to { transform: translate(-50%,-50%) scale(1.1); } }
 
-        /* CONTROLS */
+        /* CONTROLS - FLOATING JOYSTICK */
         #zone-move { position: absolute; bottom: 0; left: 0; width: 50%; height: 100%; z-index: 10; }
         #zone-look { position: absolute; bottom: 0; right: 0; width: 50%; height: 100%; z-index: 10; }
+        
+        /* Joystick UI (Hidden by default, shows on touch) */
+        #joy-container {
+            position: absolute; width: 120px; height: 120px; display: none; pointer-events: none; z-index: 20;
+            transform: translate(-50%, -50%); /* Centers the container on the touch point */
+        }
         #joy-base {
-            position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px;
-            border: 2px solid rgba(0, 255, 0, 0.3); border-radius: 50%; pointer-events: none; z-index: 5;
+            width: 100%; height: 100%;
+            border: 2px solid rgba(0, 255, 0, 0.5); border-radius: 50%; 
+            background: rgba(0, 255, 0, 0.1);
         }
         #joy-stick {
             position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
-            background: rgba(0, 255, 0, 0.5); border-radius: 50%; transform: translate(-50%, -50%);
+            background: rgba(0, 255, 0, 0.8); border-radius: 50%; 
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px #0f0;
         }
     </style>
 </head>
@@ -73,7 +78,7 @@
 
     <!-- LOGIN -->
     <div id="login-screen">
-        <h1>MATRIX ROOM</h1>
+        <h1>MATRIX ROOM PRO</h1>
         <input type="text" id="username" placeholder="ENTER USERNAME" maxlength="10">
         <input type="number" id="room-code" placeholder="ROOM CODE (e.g. 1)" maxlength="5">
         <button id="join-btn">ENTER SYSTEM</button>
@@ -92,7 +97,12 @@
     <!-- CONTROLS -->
     <div id="zone-move"></div>
     <div id="zone-look"></div>
-    <div id="joy-base"><div id="joy-stick"></div></div>
+    
+    <!-- DYNAMIC JOYSTICK -->
+    <div id="joy-container">
+        <div id="joy-base"></div>
+        <div id="joy-stick"></div>
+    </div>
 
     <script type="importmap">
         { "imports": {
@@ -138,15 +148,17 @@
         let startTime = null;
         let otherPlayers = {};
 
-        // Chair Locations (Left and Right of center)
-        const chair1Pos = new THREE.Vector3(-30, -35, 0);
-        const chair2Pos = new THREE.Vector3(30, -35, 0);
-        let activeChair = null; // Which chair we are near/sitting on
+        // Chair Locations (Raised relative to floor)
+        const floorY = -50;
+        const chairY = floorY + 12; // Seat height
+        const chair1Pos = new THREE.Vector3(-40, chairY, 0);
+        const chair2Pos = new THREE.Vector3(40, chairY, 0);
+        let activeChair = null;
 
         // 3. SCENE
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xcccccc);
-        scene.fog = new THREE.Fog(0xcccccc, 10, 500);
+        scene.background = new THREE.Color(0xaaaaaa);
+        scene.fog = new THREE.Fog(0xaaaaaa, 10, 500);
 
         const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -154,8 +166,9 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(renderer.domElement);
 
-        const ambLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambLight);
-        const pLight = new THREE.PointLight(0xffffff, 0.6, 300); pLight.position.set(0, 100, 0); scene.add(pLight);
+        // Lights
+        const ambLight = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambLight);
+        const pLight = new THREE.PointLight(0xffffff, 0.8, 500); pLight.position.set(0, 100, 0); scene.add(pLight);
 
         // 4. TEXTURES
         const matUniforms = { iTime: { value: 0 } };
@@ -176,71 +189,85 @@
             `, side: THREE.DoubleSide
         });
 
-        function createGridTex() {
-            const c=document.createElement('canvas'); c.width=256; c.height=256; const x=c.getContext('2d');
-            x.fillStyle='#e0e0e0'; x.fillRect(0,0,256,256); x.strokeStyle='#999'; x.lineWidth=2; x.strokeRect(0,0,256,256);
-            const t = new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(8,8); return t;
+        // Numbered Texture Generator
+        let squareCount = 1;
+        function createNumTex(n) {
+            const c=document.createElement('canvas'); c.width=128; c.height=128; const x=c.getContext('2d');
+            x.fillStyle='#ddd'; x.fillRect(0,0,128,128);
+            x.strokeStyle='#555'; x.lineWidth=4; x.strokeRect(0,0,128,128);
+            x.fillStyle='#333'; x.font='bold 40px Arial'; x.textAlign='center'; x.textBaseline='middle'; 
+            x.fillText(n, 64, 64);
+            return new THREE.CanvasTexture(c);
         }
-        const normalMat = new THREE.MeshStandardMaterial({ map: createGridTex(), roughness: 0.5 });
         
-        // Furniture Material (Dark Metal)
-        const furnitureMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.2, metalness: 0.8 });
+        // Bright Material for Furniture
+        const furnitureMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.1 });
 
-        // 5. OBJECTS
-        const matrixObjects = []; // List of objects to apply matrix effect to
+        // 5. BUILD ROOM & FURNITURE
+        const matrixObjects = []; 
 
-        function buildWall(w, h, p, r) {
-            const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h), normalMat);
-            m.position.copy(p); m.rotation.set(r.x, r.y, r.z);
-            scene.add(m); matrixObjects.push(m);
+        function buildWallGroup(w, h, px, py, pz, rx, ry) {
+            const g = new THREE.Group();
+            g.position.set(px, py, pz);
+            g.rotation.set(rx, ry, 0);
+            
+            const cols = w/50;
+            const rows = h/50;
+            
+            for(let i=0; i<cols; i++) {
+                for(let j=0; j<rows; j++) {
+                    const tex = createNumTex(squareCount++);
+                    const m = new THREE.Mesh(new THREE.PlaneGeometry(50,50), new THREE.MeshStandardMaterial({map: tex}));
+                    m.position.set((i*50)-w/2+25, (j*50)-h/2+25, 0);
+                    g.add(m); matrixObjects.push(m);
+                }
+            }
+            scene.add(g);
         }
 
-        // Build Room
         const W=400, H=400, T=150;
-        buildWall(W,H, new THREE.Vector3(0,-50,0), new THREE.Vector3(-Math.PI/2,0,0)); // Floor
-        buildWall(W,H, new THREE.Vector3(0,100,0), new THREE.Vector3(Math.PI/2,0,0)); // Ceiling
-        buildWall(W,T, new THREE.Vector3(0,25,-200), new THREE.Vector3(0,0,0));
-        buildWall(W,T, new THREE.Vector3(0,25,200), new THREE.Vector3(0,Math.PI,0));
-        buildWall(H,T, new THREE.Vector3(-200,25,0), new THREE.Vector3(0,Math.PI/2,0));
-        buildWall(H,T, new THREE.Vector3(200,25,0), new THREE.Vector3(0,-Math.PI/2,0));
+        buildWallGroup(W,H, 0,-50,0, -Math.PI/2,0); // Floor
+        buildWallGroup(W,H, 0,100,0, Math.PI/2,0); // Ceiling
+        buildWallGroup(W,T, 0,25,-200, 0,0);
+        buildWallGroup(W,T, 0,25,200, 0,Math.PI);
+        buildWallGroup(H,T, -200,25,0, 0,Math.PI/2);
+        buildWallGroup(H,T, 200,25,0, 0,-Math.PI/2);
 
-        // --- BUILD FURNITURE (Table & Chairs) ---
+        // BUILD VISIBLE FURNITURE
         function createFurniture() {
-            const furnGroup = new THREE.Group();
+            const g = new THREE.Group();
+            
+            // Table Leg
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(3,3,30,16), furnitureMat);
+            leg.position.set(0, floorY + 15, 0); // Center of leg is at -35
+            g.add(leg); matrixObjects.push(leg);
 
-            // TABLE (Center)
-            // Top
-            const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(30, 30, 2, 32), furnitureMat);
-            tableTop.position.set(0, -30, 0); // 20 units high from floor (-50)
-            furnGroup.add(tableTop); matrixObjects.push(tableTop);
-            // Leg
-            const tableLeg = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 20, 16), furnitureMat);
-            tableLeg.position.set(0, -40, 0);
-            furnGroup.add(tableLeg); matrixObjects.push(tableLeg);
+            // Table Top (Y = -20)
+            const top = new THREE.Mesh(new THREE.CylinderGeometry(35,35,2,32), furnitureMat);
+            top.position.set(0, floorY + 30, 0); 
+            g.add(top); matrixObjects.push(top);
 
-            // CHAIR 1 (Left)
-            const c1Seat = new THREE.Mesh(new THREE.BoxGeometry(12, 2, 12), furnitureMat);
-            c1Seat.position.copy(chair1Pos);
-            furnGroup.add(c1Seat); matrixObjects.push(c1Seat);
-            const c1Back = new THREE.Mesh(new THREE.BoxGeometry(2, 15, 12), furnitureMat);
-            c1Back.position.set(-36, -28, 0); // Backrest
-            furnGroup.add(c1Back); matrixObjects.push(c1Back);
-            const c1Leg = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 15, 8), furnitureMat);
-            c1Leg.position.set(-30, -42.5, 0);
-            furnGroup.add(c1Leg); matrixObjects.push(c1Leg);
+            // Function to make chair
+            function makeChair(xPos) {
+                const cg = new THREE.Group();
+                const seat = new THREE.Mesh(new THREE.BoxGeometry(14, 2, 14), furnitureMat);
+                seat.position.set(xPos, floorY + 15, 0);
+                cg.add(seat); matrixObjects.push(seat);
+                
+                const back = new THREE.Mesh(new THREE.BoxGeometry(2, 16, 14), furnitureMat);
+                const backX = xPos > 0 ? xPos + 7 : xPos - 7;
+                back.position.set(backX, floorY + 22, 0);
+                cg.add(back); matrixObjects.push(back);
+                
+                const cleg = new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,15,8), furnitureMat);
+                cleg.position.set(xPos, floorY + 7.5, 0);
+                cg.add(cleg); matrixObjects.push(cleg);
+                return cg;
+            }
 
-            // CHAIR 2 (Right)
-            const c2Seat = new THREE.Mesh(new THREE.BoxGeometry(12, 2, 12), furnitureMat);
-            c2Seat.position.copy(chair2Pos);
-            furnGroup.add(c2Seat); matrixObjects.push(c2Seat);
-            const c2Back = new THREE.Mesh(new THREE.BoxGeometry(2, 15, 12), furnitureMat);
-            c2Back.position.set(36, -28, 0); // Backrest
-            furnGroup.add(c2Back); matrixObjects.push(c2Back);
-            const c2Leg = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 15, 8), furnitureMat);
-            c2Leg.position.set(30, -42.5, 0);
-            furnGroup.add(c2Leg); matrixObjects.push(c2Leg);
-
-            scene.add(furnGroup);
+            g.add(makeChair(-40)); // Chair 1
+            g.add(makeChair(40));  // Chair 2
+            scene.add(g);
         }
         createFurniture();
 
@@ -323,61 +350,133 @@
         
         sitBtn.addEventListener('click', () => {
             if(isSitting) {
-                // Stand up
+                // STAND UP
                 isSitting = false;
-                sitBtn.style.display = "none"; // Hide until we move again
+                sitBtn.style.display = "none";
                 sitBtn.innerText = "🪑 SIT DOWN";
-                // Move slightly away so we don't instantly sit back down
-                const offset = activeChair === 1 ? 10 : -10;
+                const offset = activeChair === 1 ? 15 : -15;
                 camera.position.x += offset; 
-                camera.position.y = 0; // Standard eye height
+                camera.position.y = 0; // Back to standing height
             } else {
-                // Sit down
+                // SIT DOWN
                 if(!activeChair) return;
                 isSitting = true;
                 sitBtn.innerText = "🏃 LEAVE SEAT";
-                
-                // Snap position
                 const target = activeChair === 1 ? chair1Pos : chair2Pos;
-                camera.position.set(target.x, target.y + 10, target.z); // Sit slightly above seat
-                // Look at table
-                camera.lookAt(0, -30, 0);
+                
+                // FIXED: Set camera high enough to look over table
+                // Table top is at Y = -20.
+                // Camera Y = -5 puts "eyes" 15 units above table surface.
+                camera.position.set(target.x, -5, target.z);
+                
+                // FIXED: Look slightly down at the table surface
+                camera.lookAt(0, -20, 0); 
             }
         });
 
-        // --- INPUTS ---
+        // --- PRO FLOATING JOYSTICK CONTROLS ---
         let joyId=null, lookId=null;
         let move={x:0,y:0}, lastLook={x:0,y:0};
-        const jStick = document.getElementById('joy-stick');
-        const jBase = document.getElementById('joy-base');
+        
+        const joyContainer = document.getElementById('joy-container');
+        const joyStick = document.getElementById('joy-stick');
+        let joyStart = {x:0, y:0};
 
-        document.getElementById('zone-move').addEventListener('touchstart', e=>{ e.preventDefault(); joyId=e.changedTouches[0].identifier; updateJoy(e.changedTouches[0]); },{passive:false});
-        document.getElementById('zone-move').addEventListener('touchmove', e=>{ e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===joyId) updateJoy(t); },{passive:false});
-        document.getElementById('zone-move').addEventListener('touchend', e=>{ for(let t of e.changedTouches) if(t.identifier===joyId) { joyId=null; move={x:0,y:0}; jStick.style.transform="translate(-50%,-50%)"; } });
-
-        function updateJoy(t) {
-            if(isSitting) return; // Cannot move while sitting
-            const r = jBase.getBoundingClientRect();
-            const cx=r.left+r.width/2, cy=r.top+r.height/2;
-            let dx=t.clientX-cx, dy=t.clientY-cy;
-            const d=Math.min(Math.sqrt(dx*dx+dy*dy), 60);
-            const a=Math.atan2(dy,dx);
-            dx=Math.cos(a)*d; dy=Math.sin(a)*d;
-            jStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-            move.x=dx/60; move.y=dy/60;
-        }
-
-        document.getElementById('zone-look').addEventListener('touchstart', e=>{ e.preventDefault(); lookId=e.changedTouches[0].identifier; lastLook={x:e.changedTouches[0].clientX, y:e.changedTouches[0].clientY}; },{passive:false});
-        document.getElementById('zone-look').addEventListener('touchmove', e=>{ 
+        // ZONE MOVE (Left Side)
+        const zoneMove = document.getElementById('zone-move');
+        
+        zoneMove.addEventListener('touchstart', e => {
             e.preventDefault();
-            for(let t of e.changedTouches) if(t.identifier===lookId) {
-                camera.rotation.y -= (t.clientX - lastLook.x)*0.005;
-                camera.rotation.x -= (t.clientY - lastLook.y)*0.005;
-                camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
-                lastLook={x:t.clientX, y:t.clientY};
+            // Reset joystick if multi-touch confusion
+            if(joyId !== null) return;
+            
+            const touch = e.changedTouches[0];
+            joyId = touch.identifier;
+            joyStart = { x: touch.clientX, y: touch.clientY };
+            
+            // Show Joystick at touch position
+            joyContainer.style.display = 'block';
+            joyContainer.style.left = touch.clientX + 'px';
+            joyContainer.style.top = touch.clientY + 'px';
+            joyStick.style.transform = `translate(-50%, -50%)`;
+            move = {x:0, y:0};
+        }, {passive:false});
+
+        zoneMove.addEventListener('touchmove', e => {
+            e.preventDefault();
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === joyId) {
+                    const t = e.changedTouches[i];
+                    let dx = t.clientX - joyStart.x;
+                    let dy = t.clientY - joyStart.y;
+                    
+                    // Clamp distance to 60px radius
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const maxDist = 60;
+                    
+                    if(dist > maxDist) {
+                        const ratio = maxDist / dist;
+                        dx *= ratio;
+                        dy *= ratio;
+                    }
+                    
+                    // Move visual knob
+                    joyStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                    
+                    // Update move vector
+                    move.x = dx / maxDist;
+                    move.y = dy / maxDist;
+                }
             }
-        },{passive:false});
-        document.getElementById('zone-look').addEventListener('touchend', e=>{ for(let t of e.changedTouches) if(t.identifier===lookId) lookId=null; });
+        }, {passive:false});
+
+        zoneMove.addEventListener('touchend', e => {
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === joyId) {
+                    joyId = null;
+                    move = {x:0, y:0};
+                    joyContainer.style.display = 'none';
+                }
+            }
+        });
+
+        // ZONE LOOK (Right Side)
+        const zoneLook = document.getElementById('zone-look');
+        
+        zoneLook.addEventListener('touchstart', e => {
+            e.preventDefault();
+            if(lookId !== null) return;
+            const t = e.changedTouches[0];
+            lookId = t.identifier;
+            lastLook = {x: t.clientX, y: t.clientY};
+        }, {passive:false});
+
+        zoneLook.addEventListener('touchmove', e => {
+            e.preventDefault();
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === lookId) {
+                    const t = e.changedTouches[i];
+                    const dx = t.clientX - lastLook.x;
+                    const dy = t.clientY - lastLook.y;
+                    
+                    // Smoother sensitivity
+                    camera.rotation.y -= dx * 0.004;
+                    camera.rotation.x -= dy * 0.004;
+                    
+                    // Clamp vertical look
+                    camera.rotation.x = Math.max(-1.5, Math.min(1.5, camera.rotation.x));
+                    
+                    lastLook = {x: t.clientX, y: t.clientY};
+                }
+            }
+        }, {passive:false});
+
+        zoneLook.addEventListener('touchend', e => {
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if(e.changedTouches[i].identifier === lookId) lookId = null;
+            }
+        });
+
 
         // --- ANIMATION ---
         camera.position.set(0,0,100);
@@ -387,7 +486,6 @@
             requestAnimationFrame(animate);
             if(isMatrixMode) matUniforms.iTime.value = clock.getElapsedTime();
 
-            // Movement (Only if not sitting)
             if(!isSitting && (move.x!==0 || move.y!==0)) {
                 const fwd = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
                 const rgt = new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
@@ -397,31 +495,20 @@
                 camera.position.z = Math.max(-190, Math.min(190, camera.position.z));
             }
 
-            // Proximity Check for Chairs
             if(isPlaying && !isSitting) {
                 const dist1 = camera.position.distanceTo(new THREE.Vector3(chair1Pos.x, 0, chair1Pos.z));
                 const dist2 = camera.position.distanceTo(new THREE.Vector3(chair2Pos.x, 0, chair2Pos.z));
-                
-                if(dist1 < 25) {
-                    activeChair = 1;
-                    sitBtn.style.display = "block";
-                } else if(dist2 < 25) {
-                    activeChair = 2;
-                    sitBtn.style.display = "block";
-                } else {
-                    activeChair = null;
-                    sitBtn.style.display = "none";
-                }
+                if(dist1 < 30) { activeChair = 1; sitBtn.style.display = "block"; }
+                else if(dist2 < 30) { activeChair = 2; sitBtn.style.display = "block"; }
+                else { activeChair = null; sitBtn.style.display = "none"; }
             }
 
-            // Sync Other Players
             for(let id in otherPlayers) {
                 const p = otherPlayers[id];
                 p.mesh.position.lerp(p.tPos, 0.1);
                 p.mesh.rotation.y += (p.tRot - p.mesh.rotation.y)*0.1;
             }
 
-            // Timer
             if(startTime && !isMatrixMode) {
                 const rem = Math.ceil((30000 - (Date.now()-startTime))/1000);
                 if(rem > 0) document.getElementById('timer').innerText = `00:${rem.toString().padStart(2,'0')}`;
