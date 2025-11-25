@@ -3,99 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Multiplayer Matrix Room</title>
+    <title>Global Matrix Room</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Courier New', Courier, monospace; }
+        body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Courier New', monospace; }
         canvas { display: block; }
+
+        /* ERROR LOG */
+        #debug-log {
+            position: absolute; top: 0; left: 0; width: 100%; background: rgba(200,0,0,0.8);
+            color: white; font-size: 14px; padding: 5px; pointer-events: none; z-index: 999; display: none;
+        }
 
         /* LOGIN SCREEN */
         #login-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 100;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            color: #0f0;
+            background: #000; z-index: 100; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: #0f0;
         }
-        #username-input {
-            padding: 15px; font-size: 18px; border-radius: 5px; border: 2px solid #0f0;
-            background: #000; color: #0f0; margin-bottom: 20px; width: 200px; text-align: center;
-        }
-        #join-btn {
-            padding: 15px 30px; font-size: 18px; background: #0f0; color: #000;
-            border: none; border-radius: 5px; cursor: pointer; font-weight: bold;
-            box-shadow: 0 0 15px #0f0;
+        h1 { text-shadow: 0 0 10px #0f0; }
+        input { padding: 15px; font-size: 18px; text-align: center; margin-bottom: 20px; border: 2px solid #0f0; background: #111; color: #0f0; border-radius: 5px; }
+        button#join-btn { padding: 15px 40px; background: #0f0; border: none; font-weight: bold; font-size: 20px; cursor: pointer; border-radius: 5px; box-shadow: 0 0 15px #0f0; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Global Matrix Room</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; font-family: 'Courier New', monospace; }
+        canvas { display: block; }
+
+        /* ERROR LOG */
+        #debug-log {
+            position: absolute; top: 0; left: 0; width: 100%; background: rgba(200,0,0,0.8);
+            color: white; font-size: 14px; padding: 5px; pointer-events: none; z-index: 999; display: none;
         }
 
+        /* LOGIN SCREEN */
+        #login-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 100; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: #0f0;
+        }
+        h1 { text-shadow: 0 0 10px #0f0; }
+        input { padding: 15px; font-size: 18px; text-align: center; margin-bottom: 20px; border: 2px solid #0f0; background: #111; color: #0f0; border-radius: 5px; }
+        button#join-btn { padding: 15px 40px; background: #0f0; border: none; font-weight: bold; font-size: 20px; cursor: pointer; border-radius: 5px; box-shadow: 0 0 15px #0f0; }
+
         /* GAME UI */
-        #status-ui {
-            position: absolute; top: 20px; width: 100%; text-align: center;
-            pointer-events: none; z-index: 20;
-        }
-        #timer-display {
-            font-size: 40px; font-weight: bold; color: #fff; 
-            text-shadow: 0 0 10px #000; display: none;
-        }
-        #waiting-msg {
-            font-size: 20px; color: #aaa; background: rgba(0,0,0,0.5); 
-            padding: 5px; display: inline-block; border-radius: 5px;
-        }
+        #ui-layer { position: absolute; top: 20px; width: 100%; text-align: center; pointer-events: none; z-index: 10; }
+        #timer { font-size: 50px; color: #fff; font-weight: bold; display: none; text-shadow: 0 0 10px #000; }
+        #status { font-size: 16px; color: #aaa; background: rgba(0,0,0,0.6); display: inline-block; padding: 5px 15px; border-radius: 20px; }
 
         /* CLAP BUTTON */
         #clap-btn {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            padding: 20px 50px; font-size: 30px; font-weight: bold;
-            background: #00ff00; color: black; border: 5px solid white;
+            padding: 25px 60px; font-size: 25px; background: #0f0; border: 5px solid #fff;
             border-radius: 50px; cursor: pointer; display: none; z-index: 50;
-            box-shadow: 0 0 30px #00ff00; animation: pulse 1s infinite;
+            box-shadow: 0 0 30px #0f0; animation: pulse 1s infinite;
         }
-        @keyframes pulse { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.1); } 100% { transform: translate(-50%, -50%) scale(1); } }
+        @keyframes pulse { 0% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.1); } }
 
-        /* JOYSTICK & HINTS */
-        #joystick-container { position: absolute; bottom: 40px; left: 40px; width: 150px; height: 150px; z-index: 10; touch-action: none; }
-        #joystick-zone { width: 100%; height: 100%; background: rgba(0, 255, 0, 0.1); border: 2px solid rgba(0, 255, 0, 0.3); border-radius: 50%; position: relative; }
-        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; background: rgba(0, 255, 0, 0.5); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
-        #hint { position: absolute; bottom: 40px; right: 40px; color: #0f0; font-weight: bold; pointer-events: none; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 10px; border: 1px solid #0f0; }
+        /* CONTROLS */
+        #joystick-zone { position: absolute; bottom: 40px; left: 40px; width: 140px; height: 140px; border: 2px solid rgba(0,255,0,0.3); border-radius: 50%; touch-action: none; }
+        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; background: rgba(0,255,0,0.6); border-radius: 50%; transform: translate(-50%,-50%); pointer-events: none; }
+        #look-hint { position: absolute; bottom: 40px; right: 40px; color: #0f0; border: 1px solid #0f0; padding: 10px; background: rgba(0,0,0,0.5); pointer-events: none; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-    <!-- LOGIN -->
+    <div id="debug-log"></div>
+
     <div id="login-screen">
-        <h1 style="text-shadow: 0 0 10px #0f0;">THE SYSTEM</h1>
-        <input type="text" id="username-input" placeholder="CODENAME" maxlength="10">
-        <button id="join-btn">ENTER MATRIX</button>
+        <h1>GLOBAL ROOM</h1>
+        <input type="text" id="username" placeholder="ENTER NAME" maxlength="8">
+        <button id="join-btn">JOIN NOW</button>
     </div>
 
-    <!-- HUD -->
-    <div id="status-ui">
-        <div id="timer-display">00:30</div>
-        <div id="waiting-msg">WAITING FOR PLAYERS (1/2)...</div>
+    <div id="ui-layer">
+        <div id="timer">00:30</div>
+        <div id="status">WAITING FOR PLAYERS...</div>
     </div>
-    
-    <!-- ACTION BUTTON -->
+
     <button id="clap-btn">👏 CLAP NOW 👏</button>
 
-    <!-- CONTROLS -->
-    <div id="joystick-container"><div id="joystick-zone"><div id="joystick-knob"></div></div></div>
-    <div id="hint">DRAG RIGHT TO LOOK</div>
+    <div id="joystick-zone"><div id="joystick-knob"></div></div>
+    <div id="look-hint">DRAG RIGHT SIDE TO LOOK</div>
 
     <!-- LIBRARIES -->
     <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-                "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
-                "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
-            }
-        }
+        { "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
+        }}
     </script>
 
     <script type="module">
         import * as THREE from 'three';
         import { initializeApp } from 'firebase/app';
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
+        import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 
-        // --- FIREBASE CONFIG ---
+        // --- YOUR CONFIG (ALREADY INSERTED) ---
         const firebaseConfig = {
             apiKey: "AIzaSyBwEhCK0dpslmSHdL6OsAqJUM7ZUmtLqvU",
             authDomain: "toyou-a80b2.firebaseapp.com",
@@ -104,376 +112,276 @@
             messagingSenderId: "77162611167",
             appId: "1:77162611167:web:3dc6d01aa9dcd4bdc0046a"
         };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+
+        // DEBUGGER
+        function showError(msg) {
+            const d = document.getElementById('debug-log');
+            d.style.display = 'block';
+            d.innerText = "ERROR: " + msg;
+            if(msg.includes("permission")) d.innerText += " (CHECK FIREBASE RULES!)";
+        }
+
+        // INIT FIREBASE
+        let db;
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+        } catch(e) { showError(e.message); }
 
         // --- GAME VARIABLES ---
-        let myId = 'player_' + Math.random().toString(36).substr(2, 9);
-        let myUsername = "Neo";
-        let isGameActive = false;
-        let otherPlayers = {};
-        let wallMeshes = []; // Store walls to change skin later
-        let isMatrixMode = false;
-        
-        // Timer Logic variables
-        let playerCount = 0;
-        let timerStartTime = null;
-        const COUNTDOWN_DURATION = 30000; // 30 seconds
-        let hasClapped = false;
+        const myId = 'p_' + Math.random().toString(36).substr(2, 9);
+        let myName = "Anon";
+        let isPlaying = false;
+        let players = {};
+        let isMatrix = false;
+        let wallMeshes = [];
+        let startTime = null;
 
-        // --- SCENE SETUP ---
+        // --- SCENE ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111111);
-        scene.fog = new THREE.FogExp2(0x111111, 0.002);
-
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        scene.background = new THREE.Color(0x222222);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 500);
+        const renderer = new THREE.WebGLRenderer({antialias:true});
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // Lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-        scene.add(ambientLight);
-        const mainLight = new THREE.PointLight(0x00ff00, 0.5, 500); // Greenish light
-        mainLight.position.set(0, 50, 0);
-        mainLight.castShadow = true;
-        scene.add(mainLight);
+        // LIGHTS
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const light = new THREE.PointLight(0xffffff, 0.8, 200);
+        light.position.set(0, 50, 0);
+        scene.add(light);
 
         // --- TEXTURES ---
+        function createNumTex(n) {
+            const c = document.createElement('canvas'); c.width=128; c.height=128;
+            const x = c.getContext('2d');
+            x.fillStyle='#ddd'; x.fillRect(0,0,128,128);
+            x.fillStyle='#000'; x.font='50px Arial'; x.textAlign='center'; x.textBaseline='middle';
+            x.fillText(n, 64, 64);
+            x.strokeStyle='#555'; x.lineWidth=4; x.strokeRect(0,0,128,128);
+            return new THREE.CanvasTexture(c);
+        }
+
+        function createMatrixTex() {
+            const c = document.createElement('canvas'); c.width=256; c.height=256;
+            const x = c.getContext('2d');
+            x.fillStyle='#000'; x.fillRect(0,0,256,256);
+            x.fillStyle='#0f0'; x.font='20px monospace';
+            for(let i=0; i<60; i++) x.fillText(String.fromCharCode(0x30A0+Math.random()*96), Math.random()*256, Math.random()*256);
+            return new THREE.CanvasTexture(c);
+        }
+        const matrixTex = createMatrixTex();
+
+        // --- BUILD ROOM ---
+        const ROOM_SIZE = 400; 
+        let count = 1;
         
-        // 1. Standard Number Texture
-        function createNumberTexture(num) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 128; canvas.height = 128;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#eee'; ctx.fillRect(0, 0, 128, 128);
-            ctx.font = 'bold 50px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#333'; ctx.fillText(num, 64, 64);
-            ctx.strokeStyle = '#999'; ctx.lineWidth = 4; ctx.strokeRect(0,0,128,128);
-            return new THREE.CanvasTexture(canvas);
-        }
-
-        // 2. Matrix Digital Rain Texture (Procedural)
-        function createMatrixTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256; canvas.height = 256;
-            const ctx = canvas.getContext('2d');
-            
-            // Black background
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, 0, 256, 256);
-            
-            // Green text
-            ctx.fillStyle = '#0F0';
-            ctx.font = '20px monospace';
-            
-            // Draw random matrix code
-            for(let i=0; i<40; i++) {
-                const x = Math.random() * 256;
-                const y = Math.random() * 256;
-                const char = String.fromCharCode(0x30A0 + Math.random() * 96); // Katakana
-                ctx.globalAlpha = Math.random();
-                ctx.fillText(char, x, y);
-            }
-            
-            // Glow effect borders
-            ctx.globalAlpha = 1;
-            ctx.strokeStyle = '#00FF00';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(0,0,256,256);
-
-            const tex = new THREE.CanvasTexture(canvas);
-            return tex;
-        }
-
-        const matrixTexture = createMatrixTexture();
-        // Make it repeat
-        matrixTexture.wrapS = THREE.RepeatWrapping;
-        matrixTexture.wrapT = THREE.RepeatWrapping;
-
-        // --- ROOM BUILDING ---
-        const ROOM_W = 400, ROOM_D = 400, ROOM_H = 120, CELL = 50;
-        let squareCounter = 1;
-
-        function buildWall(w, h, px, py, pz, rx, ry, rz) {
-            const group = new THREE.Group();
-            group.position.set(px, py, pz);
-            group.rotation.set(rx, ry, rz);
-            
-            const cols = Math.floor(w/CELL);
-            const rows = Math.floor(h/CELL);
-            const sx = -w/2, sy = -h/2;
-
-            for(let r=0; r<rows; r++) {
-                for(let c=0; c<cols; c++) {
-                    // Standard Material
-                    const mat = new THREE.MeshStandardMaterial({ 
-                        map: createNumberTexture(squareCounter++),
-                        roughness: 0.5
-                    });
-                    
-                    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(CELL, CELL), mat);
-                    mesh.position.set(sx + c*CELL + CELL/2, sy + r*CELL + CELL/2, 0);
-                    
-                    // Add to list for swapping later
-                    wallMeshes.push(mesh); 
-                    group.add(mesh);
-                }
-            }
-            scene.add(group);
-        }
-
-        const hW=ROOM_W/2, hH=ROOM_H/2, hD=ROOM_D/2;
-        // Floor & Ceiling
-        buildWall(ROOM_W, ROOM_D, 0, -hH, 0, -Math.PI/2, 0, 0); // Floor
-        buildWall(ROOM_W, ROOM_D, 0, hH, 0, Math.PI/2, 0, 0); // Ceiling
-        // Walls
-        buildWall(ROOM_W, ROOM_H, 0, 0, -hD, 0, 0, 0);
-        buildWall(ROOM_W, ROOM_H, 0, 0, hD, 0, Math.PI, 0);
-        buildWall(ROOM_D, ROOM_H, -hW, 0, 0, 0, Math.PI/2, 0);
-        buildWall(ROOM_D, ROOM_H, hW, 0, 0, 0, -Math.PI/2, 0);
-
-        // --- MATRIX TRANSFORMATION FUNCTION ---
-        function activateMatrixMode() {
-            if(isMatrixMode) return;
-            isMatrixMode = true;
-
-            scene.background = new THREE.Color(0x000000);
-            scene.fog = new THREE.FogExp2(0x002200, 0.01);
-            mainLight.intensity = 2;
-            
-            // Swap textures on all walls
-            wallMeshes.forEach(mesh => {
-                mesh.material.map = matrixTexture;
-                mesh.material.color.setHex(0x00ff00);
-                mesh.material.emissive.setHex(0x004400);
-                mesh.material.needsUpdate = true;
-            });
-
-            // Hide UI elements not needed
-            document.getElementById('clap-btn').style.display = 'none';
-            document.getElementById('timer-display').innerHTML = "SYSTEM HACKED";
-            document.getElementById('timer-display').style.color = "#0f0";
-        }
-
-        // --- MULTIPLAYER & GAME STATE LOGIC ---
-
-        const gameStateRef = doc(db, "gamestate", "room_001");
-
-        // 1. Join
-        document.getElementById('join-btn').addEventListener('click', () => {
-            const name = document.getElementById('username-input').value;
-            if(!name) return alert("Enter Code Name");
-            myUsername = name;
-            document.getElementById('login-screen').style.display = 'none';
-            isGameActive = true;
-            initMultiplayer();
-        });
-
-        // 2. Multiplayer Init
-        function initMultiplayer() {
-            // A. Listener for Players
-            const playersRef = collection(db, "players");
-            onSnapshot(playersRef, (snapshot) => {
-                const currentPlayers = snapshot.docs.map(d => d.id);
-                playerCount = currentPlayers.length;
-                document.getElementById('waiting-msg').innerText = `PLAYERS ONLINE: ${playerCount}`;
-
-                // If I am the 2nd player and no timer started, start the timer in DB
-                if(playerCount >= 2 && !timerStartTime) {
-                    // Check DB state specifically before writing to avoid race condition
-                    getDoc(gameStateRef).then(snap => {
-                        if (!snap.exists() || !snap.data().startTime) {
-                            updateDoc(gameStateRef, { startTime: Date.now(), matrixActive: false });
-                        }
-                    });
-                }
-
-                // Render avatars
-                snapshot.docChanges().forEach((change) => {
-                    if (change.doc.id === myId) return;
-                    if (change.type === "added") createAvatar(change.doc.id, change.doc.data());
-                    if (change.type === "modified") updateAvatar(change.doc.id, change.doc.data());
-                    if (change.type === "removed") removeAvatar(change.doc.id);
-                });
-            });
-
-            // B. Listener for Game State (Timer & Matrix)
-            onSnapshot(gameStateRef, (docSnap) => {
-                if(docSnap.exists()) {
-                    const data = docSnap.data();
-                    
-                    // Sync Timer
-                    if(data.startTime) {
-                        timerStartTime = data.startTime;
-                        document.getElementById('waiting-msg').style.display = 'none';
-                        document.getElementById('timer-display').style.display = 'block';
-                    }
-
-                    // Sync Matrix Mode
-                    if(data.matrixActive === true) {
-                        activateMatrixMode();
-                    }
-                } else {
-                    // Create doc if missing
-                    setDoc(gameStateRef, { startTime: null, matrixActive: false });
-                }
-            });
-
-            // Clean up on exit
-            window.addEventListener('beforeunload', () => {
-                deleteDoc(doc(db, "players", myId));
-                // If last player, maybe reset game state? (Optional, simplified here)
-            });
-        }
-
-        // 3. Clap Button Logic
-        document.getElementById('clap-btn').addEventListener('click', () => {
-            // Update DB to trigger matrix for EVERYONE
-            updateDoc(gameStateRef, { matrixActive: true });
-            hasClapped = true;
-        });
-
-        // 4. Avatar Functions
-        function createAvatar(id, data) {
+        function makeWall(w, h, px, py, pz, rx, ry) {
             const g = new THREE.Group();
-            // Body
-            const mesh = new THREE.Mesh(
-                new THREE.CapsuleGeometry(6, 20, 4, 8),
-                new THREE.MeshStandardMaterial({ color: 0xff0000 })
-            );
-            g.add(mesh);
+            g.position.set(px, py, pz); g.rotation.set(rx, ry, 0);
+            const cols = w/50, rows = h/50;
+            const sx = -w/2, sy = -h/2;
             
-            // Name Tag
-            const canvas = document.createElement('canvas');
-            canvas.width=256; canvas.height=64;
-            const ctx = canvas.getContext('2d');
-            ctx.font="bold 30px Arial"; ctx.fillStyle="white"; ctx.textAlign="center";
-            ctx.fillText(data.name, 128, 40);
-            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
-            sprite.position.y = 25; sprite.scale.set(20, 5, 1);
-            g.add(sprite);
-
-            g.position.set(data.x, data.y, data.z);
-            scene.add(g);
-            otherPlayers[id] = g;
-        }
-
-        function updateAvatar(id, data) {
-            if(otherPlayers[id]) {
-                otherPlayers[id].position.set(data.x, data.y, data.z);
-                otherPlayers[id].rotation.y = data.rotY;
+            for(let c=0; c<cols; c++) {
+                for(let r=0; r<rows; r++) {
+                    const mesh = new THREE.Mesh(
+                        new THREE.PlaneGeometry(50,50),
+                        new THREE.MeshStandardMaterial({ map: createNumTex(count++) })
+                    );
+                    mesh.position.set(sx + c*50 + 25, sy + r*50 + 25, 0);
+                    wallMeshes.push(mesh);
+                    g.add(mesh);
+                }
             }
-        }
-        function removeAvatar(id) {
-            if(otherPlayers[id]) { scene.remove(otherPlayers[id]); delete otherPlayers[id]; }
+            scene.add(g);
         }
 
-        // --- INPUTS (JOYSTICK) ---
-        camera.position.set(0, 0, 100); camera.rotation.order = "YXZ";
-        let move = {x:0, y:0};
+        // Floor/Ceiling
+        makeWall(400, 400, 0, -60, 0, -Math.PI/2, 0);
+        makeWall(400, 400, 0, 60, 0, Math.PI/2, 0);
+        // Walls
+        makeWall(400, 120, 0, 0, -200, 0, 0); // Front
+        makeWall(400, 120, 0, 0, 200, 0, Math.PI); // Back
+        makeWall(400, 120, -200, 0, 0, 0, Math.PI/2); // Left
+        makeWall(400, 120, 200, 0, 0, 0, -Math.PI/2); // Right
+
+        // --- LOGIC ---
         
-        // Joystick
-        const joyContainer = document.getElementById('joystick-container');
+        // 1. Start Button
+        document.getElementById('join-btn').addEventListener('click', () => {
+            const name = document.getElementById('username').value;
+            if(!name) return alert("ENTER NAME");
+            myName = name;
+            document.getElementById('login-screen').style.display = 'none';
+            isPlaying = true;
+            initGame();
+        });
+
+        // 2. Init Multiplayer
+        const gameDocRef = doc(db, "gamestate", "global_room");
+        const playersRef = collection(db, "players_global");
+
+        function initGame() {
+            // A. Listen to Game State (Timer/Matrix)
+            onSnapshot(gameDocRef, (snap) => {
+                if(!snap.exists()) {
+                    // Create default state if missing
+                    setDoc(gameDocRef, { start: null, matrix: false }).catch(e => showError(e.message));
+                    return;
+                }
+                const d = snap.data();
+                
+                // Matrix Trigger
+                if(d.matrix && !isMatrix) {
+                    isMatrix = true;
+                    wallMeshes.forEach(m => {
+                        m.material.map = matrixTex;
+                        m.material.color.setHex(0x00ff00);
+                        m.material.needsUpdate = true;
+                    });
+                    document.getElementById('clap-btn').style.display = 'none';
+                    document.getElementById('timer').style.color = '#0f0';
+                    document.getElementById('timer').innerText = "HACKED";
+                }
+
+                // Timer Trigger
+                if(d.start) {
+                    startTime = d.start;
+                    document.getElementById('timer').style.display = 'block';
+                }
+            }, error => showError(error.message));
+
+            // B. Listen to Players
+            onSnapshot(playersRef, (snap) => {
+                const now = Date.now();
+                let pCount = 0;
+
+                snap.forEach(d => {
+                    const data = d.data();
+                    if(now - data.time > 8000) return; // Skip ghosts
+                    
+                    pCount++;
+                    if(d.id === myId) return; // Skip self
+
+                    // Update/Create Avatar
+                    if(!players[d.id]) {
+                        const g = new THREE.Group();
+                        const b = new THREE.Mesh(new THREE.CapsuleGeometry(5,15,4,8), new THREE.MeshStandardMaterial({color:0xff0000}));
+                        g.add(b);
+                        // Name
+                        const cv = document.createElement('canvas'); cv.width=256; cv.height=64;
+                        const cx=cv.getContext('2d'); cx.font="30px Arial"; cx.fillStyle="white"; cx.textAlign="center"; cx.fillText(data.name,128,40);
+                        const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv)}));
+                        s.position.y=20; s.scale.set(20,5,1); g.add(s);
+                        
+                        g.position.set(data.x, data.y, data.z);
+                        scene.add(g);
+                        players[d.id] = g;
+                    } else {
+                        players[d.id].position.set(data.x, data.y, data.z);
+                        players[d.id].rotation.y = data.ry;
+                    }
+                });
+
+                // Remove disconnected
+                for(let id in players) {
+                    if(!snap.docs.find(doc => doc.id === id)) {
+                        scene.remove(players[id]); delete players[id];
+                    }
+                }
+
+                document.getElementById('status').innerText = `PLAYERS ONLINE: ${pCount}`;
+
+                // Trigger Timer if 2 players and not started
+                if(pCount >= 2 && !startTime && isPlaying) {
+                    updateDoc(gameDocRef, { start: Date.now() }).catch(e=>{}); 
+                }
+            });
+
+            // C. Send My Pos
+            setInterval(() => {
+                if(isPlaying) {
+                    setDoc(doc(db, "players_global", myId), {
+                        x: camera.position.x, y: camera.position.y-10, z: camera.position.z,
+                        ry: camera.rotation.y, name: myName, time: Date.now()
+                    }).catch(e => showError(e.message));
+                }
+            }, 100);
+        }
+
+        // 3. Clap Logic
+        document.getElementById('clap-btn').addEventListener('click', () => {
+            updateDoc(gameDocRef, { matrix: true });
+        });
+
+        // --- INPUTS ---
+        camera.position.set(0,0,100);
+        let move = {x:0, y:0};
+        let joyId = null;
+        const joyZone = document.getElementById('joystick-zone');
         const joyKnob = document.getElementById('joystick-knob');
-        let joyTouchId = null;
 
         const handleJoy = (cx, cy) => {
-            const rect = joyContainer.getBoundingClientRect();
-            const centerX = rect.left + rect.width/2;
-            const centerY = rect.top + rect.height/2;
-            let dx = cx - centerX; let dy = cy - centerY;
+            const r = joyZone.getBoundingClientRect();
+            let dx = cx - (r.left+70), dy = cy - (r.top+70);
             const dist = Math.min(Math.sqrt(dx*dx+dy*dy), 60);
-            const angle = Math.atan2(dy, dx);
-            dx = Math.cos(angle)*dist; dy = Math.sin(angle)*dist;
-            joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            const ang = Math.atan2(dy, dx);
+            dx = Math.cos(ang)*dist; dy = Math.sin(ang)*dist;
+            joyKnob.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
             move.x = dx/60; move.y = dy/60;
         };
 
-        joyContainer.addEventListener('touchstart', e => {
-            e.preventDefault(); joyTouchId=e.changedTouches[0].identifier;
-            handleJoy(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
-        }, {passive:false});
-        joyContainer.addEventListener('touchmove', e => {
-            e.preventDefault();
-            for(let t of e.changedTouches) if(t.identifier===joyTouchId) handleJoy(t.clientX, t.clientY);
-        }, {passive:false});
-        const endJoy = e => {
-             for(let t of e.changedTouches) if(t.identifier===joyTouchId) {
-                 joyTouchId=null; move={x:0,y:0}; joyKnob.style.transform="translate(-50%,-50%)";
-             }
-        };
-        joyContainer.addEventListener('touchend', endJoy);
+        joyZone.addEventListener('touchstart', e=>{ e.preventDefault(); joyId=e.changedTouches[0].identifier; handleJoy(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }, {passive:false});
+        joyZone.addEventListener('touchmove', e=>{ e.preventDefault(); for(let t of e.changedTouches) if(t.identifier===joyId) handleJoy(t.clientX, t.clientY); }, {passive:false});
+        joyZone.addEventListener('touchend', e=>{ for(let t of e.changedTouches) if(t.identifier===joyId) { joyId=null; move={x:0,y:0}; joyKnob.style.transform='translate(-50%,-50%)'; } });
 
         // Look
-        let prevX=0, prevY=0, isLooking=false;
-        document.addEventListener('mousedown', e => { if(e.target.tagName !== 'BUTTON') { isLooking=true; prevX=e.clientX; prevY=e.clientY; } });
-        document.addEventListener('mousemove', e => {
-            if(isLooking) {
-                camera.rotation.y -= (e.clientX - prevX)*0.003;
-                camera.rotation.x -= (e.clientY - prevY)*0.003;
-                prevX=e.clientX; prevY=e.clientY;
-            }
-        });
-        document.addEventListener('mouseup', () => isLooking=false);
-        
-        // Touch Look
-        let lookId = null;
-        document.addEventListener('touchstart', e => {
-            for(let t of e.changedTouches) if(t.identifier !== joyTouchId && e.target.tagName !== 'BUTTON') { lookId=t.identifier; prevX=t.clientX; prevY=t.clientY; }
+        let lookId=null, prevLook={x:0,y:0};
+        document.addEventListener('touchstart', e=>{
+            for(let t of e.changedTouches) if(t.identifier!==joyId && e.target.id!=='clap-btn') { lookId=t.identifier; prevLook={x:t.clientX, y:t.clientY}; }
         }, {passive:false});
-        document.addEventListener('touchmove', e => {
-            for(let t of e.changedTouches) if(t.identifier === lookId) {
-                camera.rotation.y -= (t.clientX - prevX)*0.005;
-                camera.rotation.x -= (t.clientY - prevY)*0.005;
-                prevX=t.clientX; prevY=t.clientY;
+        document.addEventListener('touchmove', e=>{
+            for(let t of e.changedTouches) if(t.identifier===lookId) {
+                camera.rotation.y -= (t.clientX - prevLook.x)*0.005;
+                camera.rotation.x -= (t.clientY - prevLook.y)*0.005;
+                prevLook={x:t.clientX, y:t.clientY};
             }
         }, {passive:false});
 
-
-        // --- ANIMATION LOOP ---
-        let lastUpload = 0;
+        // --- ANIMATION ---
         function animate() {
             requestAnimationFrame(animate);
-
-            // 1. Move
-            if(move.x !== 0 || move.y !== 0) {
-                const dir = new THREE.Vector3(move.x, 0, move.y).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
-                camera.position.addScaledVector(dir, 4);
-            }
-
-            // 2. Sync Pos
-            const now = Date.now();
-            if(isGameActive && now - lastUpload > 50) {
-                setDoc(doc(db, "players", myId), {
-                    x: camera.position.x, y: camera.position.y-10, z: camera.position.z,
-                    rotY: camera.rotation.y, name: myUsername, time: now
-                });
-                lastUpload = now;
-            }
-
-            // 3. Timer Logic
-            if(timerStartTime && !isMatrixMode) {
-                const elapsed = now - timerStartTime;
-                let remaining = Math.ceil((COUNTDOWN_DURATION - elapsed) / 1000);
+            
+            // Move
+            if(move.x!==0 || move.y!==0) {
+                const d = new THREE.Vector3(move.x, 0, move.y).applyAxisAngle(new THREE.Vector3(0,1,0), camera.rotation.y);
+                camera.position.addScaledVector(d, 3.5);
                 
-                if(remaining > 0) {
-                    document.getElementById('timer-display').innerText = `TIME: ${remaining}s`;
-                } else {
-                    document.getElementById('timer-display').innerText = "TIME'S UP!";
+                // Boundaries
+                const LIM = 180;
+                camera.position.x = Math.max(-LIM, Math.min(LIM, camera.position.x));
+                camera.position.z = Math.max(-LIM, Math.min(LIM, camera.position.z));
+            }
+
+            // Timer
+            if(startTime && !isMatrix) {
+                const elap = Date.now() - startTime;
+                const rem = Math.ceil((30000 - elap)/1000);
+                if(rem > 0) document.getElementById('timer').innerText = "00:" + (rem<10?'0':'')+rem;
+                else {
+                    document.getElementById('timer').innerText = "TIME UP";
                     document.getElementById('clap-btn').style.display = 'block';
                 }
             }
 
-            // 4. Animate Matrix Texture
-            if(isMatrixMode) {
-                matrixTexture.offset.y -= 0.01; // Rain effect
-            }
+            // Matrix
+            if(isMatrix) matrixTex.offset.y -= 0.015;
 
             renderer.render(scene, camera);
         }
         animate();
+
+        window.addEventListener('beforeunload', ()=>deleteDoc(doc(db, "players_global", myId)));
 
     </script>
 </body>
